@@ -14,7 +14,30 @@ app.use(cors()); // เปิดให้หน้าเว็บจากทุ
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static("public"));
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// ── ระบบจัดการ API Keys (Rotation) ──────────────────────────────────────────
+const apiKeys = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',') : [];
+let currentKeyIndex = 0;
+
+// ฟังก์ชันดึง AI Instance พร้อมคีย์ปัจจุบัน
+function getGenAI() {
+  if (apiKeys.length === 0) {
+    console.error("❌ ไม่พบ GEMINI_API_KEYS ใน .env");
+    return new GoogleGenAI({ apiKey: "" });
+  }
+  const key = apiKeys[currentKeyIndex].trim();
+  console.log(`🔑 กำลังใช้ API Key ลำดับที่: ${currentKeyIndex + 1}/${apiKeys.length}`);
+  return new GoogleGenAI({ apiKey: key });
+}
+
+// ฟังก์ชันสลับคีย์เมื่อเจอ Error 429
+function rotateKey() {
+  if (apiKeys.length > 1) {
+    currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+    console.log(`🔄 ตรวจพบโควตาเต็ม! สลับไปใช้ API Key ลำดับที่: ${currentKeyIndex + 1}/${apiKeys.length}`);
+  } else {
+    console.log(`⚠️ มี API Key เพียงคีย์เดียว ไม่สามารถสลับได้`);
+  }
+}
 
 // ── Cache (in-memory, TTL 5 min) ──────────────────────────────────────────────
 const cache = new Map();
@@ -48,6 +71,9 @@ async function callGemini(base64, targetTime, mimeType = "image/png", retries = 
   try {
     console.log(`⏳ กำลังส่งไฟล์ [${mimeType}] ไปให้ Gemini... (รอบที่เหลือ: ${retries})`);
 
+    // ดึง AI Instance ที่ผูกกับ Key ปัจจุบันมาใช้
+    const ai = getGenAI();
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
@@ -76,7 +102,17 @@ async function callGemini(base64, targetTime, mimeType = "image/png", retries = 
     // แกะรหัส Error สไตล์ SDK ตัวใหม่ (@google/genai)
     const statusCode = err.status || err.statusCode || (err.error?.code);
     
-    // ถ้าเจอ 429 (โควตาเต็ม) จะไม่ยอมให้รอรันใหม่ ปล่อยหลุดไปบอกผู้ใช้ทันทีเพื่อความเร็ว
+    // หากเจอ 429 (โควตาเต็ม) ให้ทำการสลับคีย์ทันทีตามเงื่อนไขที่เพิ่มเข้ามา
+    if (statusCode === 429) {
+      rotateKey();
+      // หลังจากสลับคีย์แล้ว ให้ทำการ Retry ทันทีโดยใช้คีย์ใหม่ (ถ้ายังมีสิทธิ์ Retry เหลือ)
+      if (retries > 0) {
+        console.log(`🔄 สลับคีย์แล้ว กำลังลองส่งใหม่อีกครั้งทันที...`);
+        return callGemini(base64, targetTime, mimeType, retries - 1);
+      }
+    }
+    
+    // กรณี Error อื่นๆ ที่สามารถ Retry ได้ (503, Timeout)
     const retryable = statusCode === 503 || err.name === "AbortError" || !statusCode;
     
     if (retryable && retries > 0) {
@@ -104,7 +140,7 @@ function validateInput(image, targetTime) {
 function geminiErrorResponse(err) {
   const statusCode = err.status || err.statusCode || (err.error?.code);
   if (statusCode === 429)
-    return { status: 429, message: "โควตา API เต็มครับ! รอประมาณ 1 นาทีแล้วลองใหม่นะ" };
+    return { status: 429, message: "โควตา API เต็มครับ! ระบบทำการสลับคีย์ให้แล้ว กรุณาลองใหม่อีกครั้ง" };
   if (statusCode === 400)
     return { status: 400, message: "ไฟล์ไม่ถูกต้องหรือ Gemini ไม่รองรับรูปแบบนี้" };
   if (statusCode === 503)
@@ -176,6 +212,6 @@ app.get("/download/:filename", (req, res) => {
 // ── Start Server ──────────────────────────────────────────────────────────────
 app.listen(3000, () => {
   console.log("🔥 Server is running on http://localhost:3000");
-  // บรรทัดตรวจเช็กคีย์หลุดตั้งแต่เปิดเครื่อง
-  console.log("🔑 API Key Status:", process.env.GEMINI_API_KEY ? "READY (ใช้งานได้)" : "MISSING (คีย์ว่างเปล่า)");
+  // ตรวจสอบจำนวนคีย์ทั้งหมดที่โหลดเข้ามาได้
+  console.log(`🔑 API Keys Loaded: ${apiKeys.length} keys found.`);
 });
