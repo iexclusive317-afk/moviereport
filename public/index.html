@@ -22,6 +22,7 @@
     --success:   #34d399;
     --danger:    #f87171;
     --radius:    14px;
+    --line-green: #06C755; /* สีประจำแอป LINE */
   }
 
   body {
@@ -59,7 +60,7 @@
     border-radius: var(--radius);
     padding: 24px;
     max-width: 660px;
-    margin: 0 auto 28px;
+    margin: 0 auto 16px; /* ปรับลด margin ด้านล่าง */
   }
 
   /* ── Controls row ── */
@@ -163,6 +164,32 @@
   .btn-analyze:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
   .btn-analyze:active:not(:disabled) { transform: translateY(0); }
   .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── 🌟 ปุ่มส่ง LINE ดีไซน์พิเศษเข้าธีม ── */
+  .action-container {
+    max-width: 660px;
+    margin: 0 auto 28px;
+  }
+  .btn-line {
+    background: var(--line-green);
+    color: white;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: none; /* ซ่อนไว้ก่อน จะเปิดหลังประมวลผลเสร็จ */
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: opacity 0.2s, transform 0.1s;
+    box-shadow: 0 4px 15px rgba(6, 199, 85, 0.2);
+  }
+  .btn-line:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-line:active { transform: translateY(0); }
 
   /* ── Spinner ── */
   .spinner {
@@ -332,18 +359,18 @@
   .idle-state .idle-icon { font-size: 2.8rem; margin-bottom: 10px; opacity: 0.4; }
   .idle-state p { font-size: 0.85rem; }
   .branch-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--amber-dim);
-  border: 1px solid var(--amber-glow);
-  color: var(--amber);
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 6px 14px;
-  border-radius: 999px;
-  margin-bottom: 16px;
-}
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--amber-dim);
+    border: 1px solid var(--amber-glow);
+    color: var(--amber);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
 
   @media (max-width: 480px) {
     .controls { flex-direction: column; }
@@ -368,12 +395,12 @@
     </div>
 
     <div class="upload-zone" id="dropZone">
-      <input type="file" id="file" accept="image/*" onchange="onFileChange(this)">
+      <input type="file" id="file" accept="image/*, application/pdf" onchange="onFileChange(this)">
       <div class="upload-face" id="uploadFace">
         <span class="upload-icon">📷</span>
         <div class="upload-text">
-          <span id="fileName">เลือกรูปตารางโรงหนัง</span>
-          <span>PNG, JPG, WEBP</span>
+          <span id="fileName">เลือกรูปภาพ หรือ ไฟล์ PDF ตารางโรงหนัง</span>
+          <span>PNG, JPG, WEBP, PDF</span>
         </div>
       </div>
     </div>
@@ -384,6 +411,12 @@
   </div>
 </div>
 
+<div class="action-container">
+  <button class="btn-line" id="shareLineBtn" onclick="shareToLine()">
+    <span>💬</span> ส่งรายงานสรุปยอดเข้าแอป LINE
+  </button>
+</div>
+
 <div style="max-width:660px; margin:0 auto;" id="output">
   <div class="idle-state">
     <div class="idle-icon">🎞️</div>
@@ -392,6 +425,9 @@
 </div>
 
 <script>
+  // 🌟 ประกาศตัวแปรหลัก global สำหรับเตรียมดึงชุดข้อมูลผลลัพธ์ไปพิมพ์แชร์ลง LINE
+  let globalMovieData = null;
+
   function onFileChange(input) {
     const zone = document.getElementById("dropZone");
     const nameEl = document.getElementById("fileName");
@@ -399,7 +435,7 @@
       nameEl.textContent = input.files[0].name;
       zone.classList.add("has-file");
     } else {
-      nameEl.textContent = "เลือกรูปตารางโรงหนัง";
+      nameEl.textContent = "เลือกรูปภาพ หรือ ไฟล์ PDF ตารางโรงหนัง";
       zone.classList.remove("has-file");
     }
   }
@@ -426,29 +462,28 @@
   }
 
   function renderResults(data, fromCache) {
-  const movies = data.movies || [];
-  if (!movies.length) { showError("ไม่พบข้อมูลหนังในภาพนี้ครับ"); return; }
+    const movies = data.movies || [];
+    if (!movies.length) { showError("ไม่พบข้อมูลหนังในภาพนี้ครับ"); return; }
 
-  const totalScreens = movies.reduce((a,m) => a + (m.screens||0), 0);
-  const totalPeople  = movies.reduce((a,m) => a + (m.people||0),  0);
-  const totalMoney   = movies.reduce((a,m) => a + (m.money||0),   0);
+    const totalScreens = movies.reduce((a,m) => a + (m.screens||0), 0);
+    const totalPeople  = movies.reduce((a,m) => a + (m.people||0),  0);
+    const totalMoney   = movies.reduce((a,m) => a + (m.money||0),   0);
 
-  const groups = {};
-  movies.forEach(m => {
-    if (!groups[m.name]) groups[m.name] = [];
-    groups[m.name].push(m);
-  });
+    const groups = {};
+    movies.forEach(m => {
+      if (!groups[m.name]) groups[m.name] = [];
+      groups[m.name].push(m);
+    });
 
-  let html = "";
+    let html = "";
 
-  if (fromCache) {
-    html += `<div class="cache-badge">⚡ จาก Cache · ไม่ใช้โควตา API</div>`;
-  }
+    if (fromCache) {
+      html += `<div class="cache-badge">⚡ จาก Cache · ไม่ใช้โควตา API</div>`;
+    }
 
-  // ── เพิ่มตรงนี้ ──
-  if (data.branch) {
-    html += `<div class="branch-badge">📍 ${data.branch}</div>`;
-  }
+    if (data.branch) {
+      html += `<div class="branch-badge">📍 ${data.branch}</div>`;
+    }
   
     html += `
       <div class="summary-row">
@@ -500,17 +535,20 @@
 
   async function process() {
     const fileInput = document.getElementById("file");
-    if (!fileInput.files[0]) { showError("กรุณาเลือกไฟล์รูปก่อนนะครับ"); return; }
+    if (!fileInput.files[0]) { showError("กรุณาเลือกไฟล์ก่อนนะครับ"); return; }
 
     const targetTime = document.getElementById("time").value;
     if (!targetTime) { showError("กรุณาระบุเวลาตัดยอดครับ"); return; }
 
     setLoading(true);
+    // ซ่อนปุ่มไลน์ไว้ก่อนหากผู้ใช้ทำการกดยิงรอบใหม่
+    document.getElementById("shareLineBtn").style.display = "none";
 
     try {
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload  = () => resolve(reader.result.split(",")[1]);
+        // 🌟 จุดเปลี่ยนที่ 3: ดึงข้อมูลเต็มชิ้นแบบรักษา Header ส่วนหัวของไฟล์ไว้ ไม่หั่นหัวข้อมูลออก (เพื่อส่งไปดักจับแยกประเภทภาพ/PDF ที่ฝั่ง Server)
+        reader.onload  = () => resolve(reader.result);
         reader.onerror = () => reject(new Error("อ่านไฟล์ไม่ได้ครับ"));
         reader.readAsDataURL(fileInput.files[0]);
       });
@@ -521,20 +559,50 @@
         body: JSON.stringify({ image: base64, targetTime }),
       });
 
-      const data = await res.json();
+      const resData = await res.json();
 
       if (!res.ok) {
-        // ใช้ error message จาก server โดยตรง (ทำงานกับ geminiErrorResponse ที่เรา return)
-        throw new Error(data.error || `เกิดข้อผิดพลาด (${res.status})`);
+        throw new Error(resData.error || `เกิดข้อผิดพลาด (${res.status})`);
       }
 
-      renderResults(data, data.fromCache === true);
+      // 🌟 จุดเปลี่ยนที่ 4: ถอดพัสดุและทริกเกอร์ระบบบันทึกไฟล์/แชร์ LINE เมื่อ Server ตอบรับสำเร็จ
+      globalMovieData = resData.data; // บันทึกสถิติเก็บลงโครงสร้างข้อมูลเตรียมเปิดแอปไลน์
+      
+      renderResults(globalMovieData, resData.fromCache === true);
+
+      // บังคับให้หน้าจอมือถือ/บราวเซอร์เด้งหน้าต่างสั่งดาวน์โหลดรายงาน JSON ทันที
+      window.location.href = `/download/${resData.fileName}`;
+
+      // เปิดแสดงปุ่มส่ง LINE ออกมาให้กดส่งงานต่อได้ทันที
+      document.getElementById("shareLineBtn").style.display = "flex";
 
     } catch (err) {
       showError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  // 🌟 จุดเปลี่ยนที่ 5: ฟังก์ชันจัดฟอร์แมตสรุปรอบตารางหนังฉบับเข้าใจง่าย และสลับหน้าต่างพุ่งเข้า LINE ทันที
+  function shareToLine() {
+    if (!globalMovieData) return;
+
+    let lineMessage = `🎬 สรุปตารางรอบฉายหนัง (${globalMovieData.branch || "ไม่ระบุสาขา"})\n\n`;
+
+    if (globalMovieData.movies && globalMovieData.movies.length > 0) {
+      globalMovieData.movies.forEach(movie => {
+        lineMessage += `🍿 ${movie.name} (${movie.sound})\n`;
+        lineMessage += `👉 ฉาย ${movie.screens} โรง | ทั้งหมด ${movie.rounds} รอบ\n`;
+        lineMessage += `👥 คนดู: ${(movie.people || 0).toLocaleString()} คน | 💰 รายได้: ${(movie.money || 0).toLocaleString()} บาท\n`;
+        lineMessage += `------------------------\n`;
+      });
+    } else {
+      lineMessage += `❌ ไม่พบข้อมูลตารางภาพยนตร์`;
+    }
+
+    // เจาะระบบเปิดแอป LINE ผ่านเบราวเซอร์บนโทรศัพท์เคลื่อนที่อัตโนมัติ
+    const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(lineMessage)}`;
+    window.open(lineUrl, "_blank");
   }
 </script>
 </body>

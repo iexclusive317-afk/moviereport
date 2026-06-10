@@ -1,10 +1,16 @@
 import express from "express";
+import cors from "cors"; // ป้องกันปัญหาบราวเซอร์บล็อก (CORS)
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import fs from "fs";         // ระบบจัดการไฟล์ของ Node.js
+import path from "path";     // ระบบจัดการที่อยู่ไฟล์
 dotenv.config();
 
 const app = express();
+
+// ── Middleware ──────────────────────────────────────────────────────────────
+app.use(cors()); // เปิดให้หน้าเว็บจากทุกที่ (รวมถึงมือถือ) ยิงเข้ามาได้
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static("public"));
 
@@ -26,7 +32,6 @@ function getCache(key) {
 }
 
 function setCache(key, data) {
-  // ป้องกัน memory leak: ถ้า cache เกิน 100 entries ล้างตัวเก่าสุดออก
   if (cache.size >= 100) {
     const firstKey = cache.keys().next().value;
     cache.delete(firstKey);
@@ -34,16 +39,18 @@ function setCache(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── Gemini call with retry ────────────────────────────────────────────────────
-async function callGemini(base64, targetTime, retries = 2) {
+// ── Gemini call (รองรับทั้ง Image และ PDF พร้อมสเตตัส Log) ──────────────────────
+async function callGemini(base64, targetTime, mimeType = "image/png", retries = 2) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  // ขยายเวลาเป็น 90 วินาที เผื่อกรณีไฟล์ใหญ่หรือระบบหลับ (Cold Start)
+  const timeout = setTimeout(() => controller.abort(), 90_000);
 
   try {
+    console.log(`⏳ กำลังส่งไฟล์ [${mimeType}] ไปให้ Gemini... (รอบที่เหลือ: ${retries})`);
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [
-        // ↓ แก้ตรงนเท่านั้น ↓
         `คุณคือระบบอ่านตารางโรงหนังจาก Major Cineplex
 กฎสำคัญ:
 1. นับเฉพาะรอบที่เวลาฉาย <= ${targetTime} เท่านั้น
@@ -56,20 +63,27 @@ async function callGemini(base64, targetTime, retries = 2) {
 8. "branch" = ชื่อสาขาจากช่อง Branch ในตาราง
 9. ตอบเป็น JSON เท่านั้น ห้ามมีข้อความอื่น
 {"branch": "", "movies": [{"name": "", "sound": "", "screens": 0, "rounds": 0, "people": 0, "money": 0}]}`,
-        // ↑ จบส่วนที่แก้ ↑
-        { inlineData: { mimeType: "image/png", data: base64 } },
+        { inlineData: { mimeType: mimeType, data: base64 } },
       ],
       config: { responseMimeType: "application/json" },
     });
+
+    console.log("✅ Gemini ตอบกลับมาสำเร็จ!");
     return JSON.parse(response.text);
   } catch (err) {
-    // ... โค้ดส่วนล่างเหมือนเดิมทุกอย่าง
-    // Retry เฉพาะ 503 / network error (ไม่ retry 429 — ต้องรอโควตา)
-   const retryable = err.status === 503 || err.status === 429 || err.name === "AbortError" || !err.status;
+    console.error("❌ เกิด Error ระหว่างคุยกับ Gemini:", err.message || err);
+
+    // แกะรหัส Error สไตล์ SDK ตัวใหม่ (@google/genai)
+    const statusCode = err.status || err.statusCode || (err.error?.code);
+    
+    // ถ้าเจอ 429 (โควตาเต็ม) จะไม่ยอมให้รอรันใหม่ ปล่อยหลุดไปบอกผู้ใช้ทันทีเพื่อความเร็ว
+    const retryable = statusCode === 503 || err.name === "AbortError" || !statusCode;
+    
     if (retryable && retries > 0) {
-      const delay = err.status === 429 ? 60_000 : (3 - retries) * 2000;
+      const delay = (3 - retries) * 2000;
+      console.log(`🔄 กำลังลองใหม่อีกครั้งในอีก ${delay/1000} วินาที...`);
       await new Promise((r) => setTimeout(r, delay));
-      return callGemini(base64, targetTime, retries - 1);
+      return callGemini(base64, targetTime, mimeType, retries - 1);
     }
     throw err;
   } finally {
@@ -80,33 +94,39 @@ async function callGemini(base64, targetTime, retries = 2) {
 // ── Input validation ──────────────────────────────────────────────────────────
 function validateInput(image, targetTime) {
   if (!image || typeof image !== "string")
-    return "กรุณาส่งรูปภาพมาด้วยครับ";
+    return "กรุณาส่งไฟล์รูปภาพหรือ PDF มาด้วยครับ";
   if (!targetTime || typeof targetTime !== "string" || !/^\d{1,2}:\d{2}$/.test(targetTime))
     return "targetTime ต้องอยู่ในรูปแบบ HH:MM เช่น 18:30";
-  if (image.length > 20_000_000)
-    return "ไฟล์รูปใหญ่เกินไปครับ (สูงสุด ~15MB)";
   return null;
 }
 
 // ── Error message mapping ─────────────────────────────────────────────────────
 function geminiErrorResponse(err) {
-  if (err.status === 429)
-    return { status: 429, message: "โควตา API เต็มครับ! รอประมาณ 1 นาทีแล้วกดใหม่นะ" };
-  if (err.status === 400)
-    return { status: 400, message: "รปภาพไม่ถูกต้องหรือ Gemini ไม่รองรับรูปแบบนี้" };
-  if (err.status === 503)
-    return { status: 503, message: "Gemini ไม่ว่างชั่วคราวครับ ลองใหม่อีกครั้ง" };
+  const statusCode = err.status || err.statusCode || (err.error?.code);
+  if (statusCode === 429)
+    return { status: 429, message: "โควตา API เต็มครับ! รอประมาณ 1 นาทีแล้วลองใหม่นะ" };
+  if (statusCode === 400)
+    return { status: 400, message: "ไฟล์ไม่ถูกต้องหรือ Gemini ไม่รองรับรูปแบบนี้" };
+  if (statusCode === 503)
+    return { status: 503, message: "Gemini ไม่ว่างชั่วคราวชั่วคราว ลองใหม่อีกครั้ง" };
   if (err.name === "AbortError")
-     return { status: 504, message: "Gemini ใช้เวลานานเกิน 30 วินาที ลองใหม่อีกครั้ง" };
-  return { status: 500, message: `เกิดข้อผิดพลาด: ${err.message}` };
+    return { status: 504, message: "Gemini ใช้เวลานานเกินไปในการอ่านไฟล์ ลองใหม่อีกครั้ง" };
+  return { status: 500, message: `เกิดข้อผิดพลาดบนเซิร์ฟเวอร์: ${err.message}` };
 }
 
-// ── Route ─────────────────────────────────────────────────────────────────────
+// ── [Route 1] หลักสำหรับประมวลผล + บันทึกไฟล์ ────────────────────────────────────────
 app.post("/analyze", async (req, res) => {
   const { image, targetTime } = req.body;
 
   const validationError = validateInput(image, targetTime);
   if (validationError) return res.status(400).json({ error: validationError });
+
+  // ตรวจจับชนิดข้อมูลอัตโนมัติ (MimeType) จาก Base64 ที่ส่งมา
+  let mimeType = "image/png"; 
+  if (image.startsWith("data:")) {
+    const match = image.match(/^data:(.*?);base64,/);
+    if (match) mimeType = match[1];
+  }
 
   const base64 = image.includes("base64,") ? image.split("base64,")[1] : image;
   const cacheKey = getCacheKey(base64, targetTime);
@@ -115,13 +135,47 @@ app.post("/analyze", async (req, res) => {
   if (cached) return res.json({ ...cached, fromCache: true });
 
   try {
-    const result = await callGemini(base64, targetTime);
+    const result = await callGemini(base64, targetTime, mimeType);
     setCache(cacheKey, result);
-    res.json(result);
+
+    // 📁 จัดการบันทึกไฟล์ JSON ลงเครื่องคอมพิวเตอร์ฝั่ง Server
+    const outputFolder = "./saved_outputs";
+    if (!fs.existsSync(outputFolder)) {
+      fs.mkdirSync(outputFolder);
+    }
+
+    const fileName = `report-${Date.now()}.json`;
+    const filePath = path.join(outputFolder, fileName);
+    fs.writeFileSync(filePath, JSON.stringify(result, null, 2), "utf-8");
+    console.log(`💾 บันทึกไฟล์สำเร็จ: ${filePath}`);
+
+    // ส่งข้อความความสำเร็จพร้อมแนบ "ชื่อไฟล์" กลับไปให้หน้าจอมือถือ/บราวเซอร์รู้
+    res.json({
+      success: true,
+      fileName: fileName,
+      data: result
+    });
   } catch (err) {
     const { status, message } = geminiErrorResponse(err);
     res.status(status).json({ error: message });
   }
 });
 
-app.listen(3000, () => console.log("🔥 http://localhost:3000"));
+// ── [Route 2] สำหรับเปิดให้คนใช้มือถือคลิกดาวน์โหลดไฟล์เพื่อแชร์ต่อ ─────────────────────
+app.get("/download/:filename", (req, res) => {
+  const fileName = req.params.filename;
+  const filePath = path.join("./saved_outputs", fileName);
+
+  if (fs.existsSync(filePath)) {
+    res.download(filePath, fileName); // บังคับให้มือถือสั่งดาวน์โหลดไฟล์ทันที
+  } else {
+    res.status(404).json({ error: "ไม่พบไฟล์รายงานนี้บนระบบ" });
+  }
+});
+
+// ── Start Server ──────────────────────────────────────────────────────────────
+app.listen(3000, () => {
+  console.log("🔥 Server is running on http://localhost:3000");
+  // บรรทัดตรวจเช็กคีย์หลุดตั้งแต่เปิดเครื่อง
+  console.log("🔑 API Key Status:", process.env.GEMINI_API_KEY ? "READY (ใช้งานได้)" : "MISSING (คีย์ว่างเปล่า)");
+});
