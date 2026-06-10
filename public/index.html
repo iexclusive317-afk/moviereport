@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cinema Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0a0f;
+    --card:      #13131a;
+    --elevated:  #1c1c28;
+    --border:    #2a2a3d;
+    --amber:     #f59e0b;
+    --amber-dim: rgba(245,158,11,0.12);
+    --amber-glow:rgba(245,158,11,0.25);
+    --text:      #e2e8f0;
+    --muted:     #94a3b8;
+    --success:   #34d399;
+    --danger:    #f87171;
+    --radius:    14px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    letter-spacing: 0.08em;
+    color: var(--amber);
+    text-shadow: 0 0 40px var(--amber-glow);
+    line-height: 1;
+  }
+  .header p {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-top: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── Main card ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 660px;
+    margin: 0 auto 28px;
+  }
+
+  /* ── Controls row ── */
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .time-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .time-wrap label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  input[type="time"] {
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-radius: 10px;
+    width: 130px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  input[type="time"]:focus { outline: none; border-color: var(--amber); }
+  input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
+
+  /* ── Film strip upload zone ── */
+  .upload-zone {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+    cursor: pointer;
+  }
+  .upload-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2; width: 100%; height: 100%;
+  }
+  .upload-face {
+    background: var(--elevated);
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: border-color 0.2s, background 0.2s;
+    height: 100%;
+  }
+  .upload-zone:hover .upload-face,
+  .upload-zone.has-file .upload-face {
+    border-color: var(--amber);
+    background: var(--amber-dim);
+  }
+  /* perforations — the signature element */
+  .upload-face::before,
+  .upload-face::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 10px;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 5px,
+      var(--bg) 5px,
+      var(--bg) 10px
+    );
+    border-radius: 3px;
+  }
+  .upload-face::before { left: -1px; }
+  .upload-face::after  { right: -1px; }
+
+  .upload-icon { font-size: 1.5rem; flex-shrink: 0; }
+  .upload-text { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+  .upload-text span:first-child { font-size: 0.82rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .upload-text span:last-child  { font-size: 0.72rem; color: var(--muted); }
+
+  /* ── Analyse button ── */
+  .btn-analyze {
+    background: var(--amber);
+    color: #0a0a0f;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.04em;
+    padding: 0 22px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-analyze:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+  .btn-analyze:active:not(:disabled) { transform: translateY(0); }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(10,10,15,0.3);
+    border-top-color: #0a0a0f;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Cache badge ── */
+  .cache-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(52,211,153,0.12);
+    border: 1px solid rgba(52,211,153,0.3);
+    color: var(--success);
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Error banner ── */
+  .error-banner {
+    background: rgba(248,113,113,0.1);
+    border: 1px solid rgba(248,113,113,0.3);
+    color: var(--danger);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+
+  /* ── Stats summary ── */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .stat-box {
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .stat-box .val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.7rem;
+    color: var(--amber);
+    letter-spacing: 0.04em;
+    line-height: 1;
+  }
+  .stat-box .lbl {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Movie groups ── */
+  .results-section h2 {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  .movie-group {
+    background: var(--elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+    animation: fadeUp 0.3s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .group-header {
+    background: linear-gradient(90deg, rgba(245,158,11,0.15), transparent);
+    border-bottom: 1px solid var(--border);
+    padding: 11px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .group-header .movie-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--amber);
+    flex: 1;
+  }
+  .group-header .total-badge {
+    font-size: 0.72rem;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+
+  .movie-row {
+    padding: 11px 16px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 14px;
+    align-items: center;
+  }
+  .movie-row:first-of-type { border-top: none; }
+
+  .sound-tag {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .stats-pills {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    min-width: 44px;
+  }
+  .pill .pv {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+  .pill .pk {
+    font-size: 0.62rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pill.money .pv { color: var(--success); }
+
+  /* ── Empty / idle state ── */
+  .idle-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+  }
+  .idle-state .idle-icon { font-size: 2.8rem; margin-bottom: 10px; opacity: 0.4; }
+  .idle-state p { font-size: 0.85rem; }
+  .branch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--amber-dim);
+  border: 1px solid var(--amber-glow);
+  color: var(--amber);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+
+  @media (max-width: 480px) {
+    .controls { flex-direction: column; }
+    .btn-analyze { justify-content: center; padding: 12px; }
+    .summary-row { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .stats-pills { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎬 Cinema Dashboard</h1>
+  <p>อัปโหลดตารางรอบ · วิเคราะห์ยอดอัตโนมัติ</p>
+</div>
+
+<div class="card">
+  <div class="controls">
+    <div class="time-wrap">
+      <label>ตัดยอดถึง</label>
+      <input type="time" id="time" value="14:00">
+    </div>
+
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="file" accept="image/*" onchange="onFileChange(this)">
+      <div class="upload-face" id="uploadFace">
+        <span class="upload-icon">📷</span>
+        <div class="upload-text">
+          <span id="fileName">เลือกรูปตารางโรงหนัง</span>
+          <span>PNG, JPG, WEBP</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-analyze" id="btn" onclick="process()">
+      <span>⚡</span><span id="btnLabel">วิเคราะห์</span>
+    </button>
+  </div>
+</div>
+
+<div style="max-width:660px; margin:0 auto;" id="output">
+  <div class="idle-state">
+    <div class="idle-icon">🎞️</div>
+    <p>เลือกไฟล์และกดวิเคราะห์เพื่อดูสรุปยอด</p>
+  </div>
+</div>
+
+<script>
+  function onFileChange(input) {
+    const zone = document.getElementById("dropZone");
+    const nameEl = document.getElementById("fileName");
+    if (input.files[0]) {
+      nameEl.textContent = input.files[0].name;
+      zone.classList.add("has-file");
+    } else {
+      nameEl.textContent = "เลือกรูปตารางโรงหนัง";
+      zone.classList.remove("has-file");
+    }
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById("btn");
+    const lbl = document.getElementById("btnLabel");
+    btn.disabled = on;
+    if (on) {
+      lbl.textContent = "กำลังวิเคราะห์...";
+      btn.querySelector("span:first-child").innerHTML = '<div class="spinner"></div>';
+    } else {
+      lbl.textContent = "วิเคราะห์";
+      btn.querySelector("span:first-child").textContent = "⚡";
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById("output").innerHTML = `
+      <div class="error-banner">
+        <span>⚠️</span>
+        <span>${msg}</span>
+      </div>`;
+  }
+
+  function renderResults(data, fromCache) {
+  const movies = data.movies || [];
+  if (!movies.length) { showError("ไม่พบข้อมูลหนังในภาพนี้ครับ"); return; }
+
+  const totalScreens = movies.reduce((a,m) => a + (m.screens||0), 0);
+  const totalPeople  = movies.reduce((a,m) => a + (m.people||0),  0);
+  const totalMoney   = movies.reduce((a,m) => a + (m.money||0),   0);
+
+  const groups = {};
+  movies.forEach(m => {
+    if (!groups[m.name]) groups[m.name] = [];
+    groups[m.name].push(m);
+  });
+
+  let html = "";
+
+  if (fromCache) {
+    html += `<div class="cache-badge">⚡ จาก Cache · ไม่ใช้โควตา API</div>`;
+  }
+
+  // ── เพิ่มตรงนี้ ──
+  if (data.branch) {
+    html += `<div class="branch-badge">📍 ${data.branch}</div>`;
+  }
+  
+    html += `
+      <div class="summary-row">
+        <div class="stat-box">
+          <div class="val">${totalScreens}</div>
+          <div class="lbl">โรงทั้งหมด</div>
+        </div>
+        <div class="stat-box">
+          <div class="val">${totalPeople.toLocaleString()}</div>
+          <div class="lbl">ผู้ชมรวม</div>
+        </div>
+        <div class="stat-box">
+          <div class="val">${(totalMoney/1000).toFixed(1)}K</div>
+          <div class="lbl">รายได้รวม (฿)</div>
+        </div>
+      </div>
+      <div class="results-section">
+        <h2>รายละเอียดตามเรื่อง</h2>`;
+
+    let delay = 0;
+    Object.entries(groups).forEach(([title, rows]) => {
+      const groupMoney = rows.reduce((a,r) => a + (r.money||0), 0);
+      html += `
+        <div class="movie-group" style="animation-delay:${delay}ms">
+          <div class="group-header">
+            <span>🎬</span>
+            <span class="movie-title">${title}</span>
+            <span class="total-badge">฿${groupMoney.toLocaleString()}</span>
+          </div>`;
+      rows.forEach(r => {
+        html += `
+          <div class="movie-row">
+            <span class="sound-tag">🔊 ${r.sound}</span>
+            <div class="stats-pills">
+              <div class="pill"><span class="pv">${r.screens}</span><span class="pk">โรง</span></div>
+              <div class="pill"><span class="pv">${r.rounds}</span><span class="pk">รอบ</span></div>
+              <div class="pill"><span class="pv">${(r.people||0).toLocaleString()}</span><span class="pk">คน</span></div>
+              <div class="pill money"><span class="pv">${(r.money||0).toLocaleString()}</span><span class="pk">บาท</span></div>
+            </div>
+          </div>`;
+      });
+      html += `</div>`;
+      delay += 60;
+    });
+
+    html += `</div>`;
+    document.getElementById("output").innerHTML = html;
+  }
+
+  async function process() {
+    const fileInput = document.getElementById("file");
+    if (!fileInput.files[0]) { showError("กรุณาเลือกไฟล์รูปก่อนนะครับ"); return; }
+
+    const targetTime = document.getElementById("time").value;
+    if (!targetTime) { showError("กรุณาระบุเวลาตัดยอดครับ"); return; }
+
+    setLoading(true);
+
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = () => reject(new Error("อ่านไฟล์ไม่ได้ครับ"));
+        reader.readAsDataURL(fileInput.files[0]);
+      });
+
+      const res = await fetch("/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, targetTime }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // ใช้ error message จาก server โดยตรง (ทำงานกับ geminiErrorResponse ที่เรา return)
+        throw new Error(data.error || `เกิดข้อผิดพลาด (${res.status})`);
+      }
+
+      renderResults(data, data.fromCache === true);
+
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+</script>
+</body>
+</html>

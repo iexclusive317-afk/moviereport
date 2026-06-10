@@ -1,0 +1,17 @@
+{
+  "name": "movie-ai-god",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.8.0",
+    "body-parser": "^1.20.2",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.2",
+    "node-fetch": "^3.3.2",
+    "openai": "^6.42.0"
+  }
+}
