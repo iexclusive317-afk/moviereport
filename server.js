@@ -1,16 +1,18 @@
 import express from "express";
-import cors from "cors"; // ป้องกันปัญหาบราวเซอร์บล็อก (CORS)
+import cors from "cors"; 
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import fs from "fs";         // ระบบจัดการไฟล์ของ Node.js
-import path from "path";     // ระบบจัดการที่อยู่ไฟล์
+import fs from "fs";         
+import path from "path";     
+import PDFDocument from "pdfkit"; // 📌 1. เพิ่มไลบรารีสร้าง PDF
+
 dotenv.config();
 
 const app = express();
 
 // ── Middleware ──────────────────────────────────────────────────────────────
-app.use(cors()); // เปิดให้หน้าเว็บจากทุกที่ (รวมถึงมือถือ) ยิงเข้ามาได้
+app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static("public"));
 
@@ -18,7 +20,6 @@ app.use(express.static("public"));
 const apiKeys = process.env.GEMINI_API_KEYS ? process.env.GEMINI_API_KEYS.split(',') : [];
 let currentKeyIndex = 0;
 
-// ฟังก์ชันดึง AI Instance พร้อมคีย์ปัจจุบัน
 function getGenAI() {
   if (apiKeys.length === 0) {
     console.error("❌ ไม่พบ GEMINI_API_KEYS ใน .env");
@@ -29,7 +30,6 @@ function getGenAI() {
   return new GoogleGenAI({ apiKey: key });
 }
 
-// ฟังก์ชันสลับคีย์เมื่อเจอ Error 429
 function rotateKey() {
   if (apiKeys.length > 1) {
     currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
@@ -62,16 +62,13 @@ function setCache(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── Gemini call (รองรับทั้ง Image และ PDF พร้อมสเตตัส Log) ──────────────────────
+// ── Gemini call ───────────────────────────────────────────────────────────────
 async function callGemini(base64, targetTime, mimeType = "image/png", retries = 2) {
   const controller = new AbortController();
-  // ขยายเวลาเป็น 90 วินาที เผื่อกรณีไฟล์ใหญ่หรือระบบหลับ (Cold Start)
   const timeout = setTimeout(() => controller.abort(), 90_000);
 
   try {
     console.log(`⏳ กำลังส่งไฟล์ [${mimeType}] ไปให้ Gemini... (รอบที่เหลือ: ${retries})`);
-
-    // ดึง AI Instance ที่ผูกกับ Key ปัจจุบันมาใช้
     const ai = getGenAI();
 
     const response = await ai.models.generateContent({
@@ -98,23 +95,17 @@ async function callGemini(base64, targetTime, mimeType = "image/png", retries = 
     return JSON.parse(response.text);
   } catch (err) {
     console.error("❌ เกิด Error ระหว่างคุยกับ Gemini:", err.message || err);
-
-    // แกะรหัส Error สไตล์ SDK ตัวใหม่ (@google/genai)
     const statusCode = err.status || err.statusCode || (err.error?.code);
     
-    // หากเจอ 429 (โควตาเต็ม) ให้ทำการสลับคีย์ทันทีตามเงื่อนไขที่เพิ่มเข้ามา
     if (statusCode === 429) {
       rotateKey();
-      // หลังจากสลับคีย์แล้ว ให้ทำการ Retry ทันทีโดยใช้คีย์ใหม่ (ถ้ายังมีสิทธิ์ Retry เหลือ)
       if (retries > 0) {
         console.log(`🔄 สลับคีย์แล้ว กำลังลองส่งใหม่อีกครั้งทันที...`);
         return callGemini(base64, targetTime, mimeType, retries - 1);
       }
     }
     
-    // กรณี Error อื่นๆ ที่สามารถ Retry ได้ (503, Timeout)
     const retryable = statusCode === 503 || err.name === "AbortError" || !statusCode;
-    
     if (retryable && retries > 0) {
       const delay = (3 - retries) * 2000;
       console.log(`🔄 กำลังลองใหม่อีกครั้งในอีก ${delay/1000} วินาที...`);
@@ -127,37 +118,29 @@ async function callGemini(base64, targetTime, mimeType = "image/png", retries = 
   }
 }
 
-// ── Input validation ──────────────────────────────────────────────────────────
 function validateInput(image, targetTime) {
-  if (!image || typeof image !== "string")
-    return "กรุณาส่งไฟล์รูปภาพหรือ PDF มาด้วยครับ";
+  if (!image || typeof image !== "string") return "กรุณาส่งไฟล์รูปภาพหรือ PDF มาด้วยครับ";
   if (!targetTime || typeof targetTime !== "string" || !/^\d{1,2}:\d{2}$/.test(targetTime))
     return "targetTime ต้องอยู่ในรูปแบบ HH:MM เช่น 18:30";
   return null;
 }
 
-// ── Error message mapping ─────────────────────────────────────────────────────
 function geminiErrorResponse(err) {
   const statusCode = err.status || err.statusCode || (err.error?.code);
-  if (statusCode === 429)
-    return { status: 429, message: "โควตา API เต็มครับ! ระบบทำการสลับคีย์ให้แล้ว กรุณาลองใหม่อีกครั้ง" };
-  if (statusCode === 400)
-    return { status: 400, message: "ไฟล์ไม่ถูกต้องหรือ Gemini ไม่รองรับรูปแบบนี้" };
-  if (statusCode === 503)
-    return { status: 503, message: "Gemini ไม่ว่างชั่วคราวชั่วคราว ลองใหม่อีกครั้ง" };
-  if (err.name === "AbortError")
-    return { status: 504, message: "Gemini ใช้เวลานานเกินไปในการอ่านไฟล์ ลองใหม่อีกครั้ง" };
+  if (statusCode === 429) return { status: 429, message: "โควตา API เต็มครับ! ระบบทำการสลับคีย์ให้แล้ว กรุณาลองใหม่อีกครั้ง" };
+  if (statusCode === 400) return { status: 400, message: "ไฟล์ไม่ถูกต้องหรือ Gemini ไม่รองรับรูปแบบนี้" };
+  if (statusCode === 503) return { status: 503, message: "Gemini ไม่ว่างชั่วคราวชั่วคราว ลองใหม่อีกครั้ง" };
+  if (err.name === "AbortError") return { status: 504, message: "Gemini ใช้เวลานานเกินไปในการอ่านไฟล์ ลองใหม่อีกครั้ง" };
   return { status: 500, message: `เกิดข้อผิดพลาดบนเซิร์ฟเวอร์: ${err.message}` };
 }
 
-// ── [Route 1] หลักสำหรับประมวลผล + บันทึกไฟล์ ────────────────────────────────────────
+// ── [Route 1] หลักสำหรับประมวลผล + บันทึกไฟล์ (อัปเดตเป็น PDF) ───────────────────────
 app.post("/analyze", async (req, res) => {
   const { image, targetTime } = req.body;
 
   const validationError = validateInput(image, targetTime);
   if (validationError) return res.status(400).json({ error: validationError });
 
-  // ตรวจจับชนิดข้อมูลอัตโนมัติ (MimeType) จาก Base64 ที่ส่งมา
   let mimeType = "image/png"; 
   if (image.startsWith("data:")) {
     const match = image.match(/^data:(.*?);base64,/);
@@ -174,18 +157,56 @@ app.post("/analyze", async (req, res) => {
     const result = await callGemini(base64, targetTime, mimeType);
     setCache(cacheKey, result);
 
-    // 📁 จัดการบันทึกไฟล์ JSON ลงเครื่องคอมพิวเตอร์ฝั่ง Server
     const outputFolder = "./saved_outputs";
     if (!fs.existsSync(outputFolder)) {
       fs.mkdirSync(outputFolder);
     }
 
-    const fileName = `report-${Date.now()}.json`;
+    // 📌 2. ตั้งชื่อไฟล์เป็น .pdf
+    const fileName = `report-${Date.now()}.pdf`;
     const filePath = path.join(outputFolder, fileName);
-    fs.writeFileSync(filePath, JSON.stringify(result, null, 2), "utf-8");
-    console.log(`💾 บันทึกไฟล์สำเร็จ: ${filePath}`);
 
-    // ส่งข้อความความสำเร็จพร้อมแนบ "ชื่อไฟล์" กลับไปให้หน้าจอมือถือ/บราวเซอร์รู้
+    // 📌 3. วาดและสร้าง PDF ลงไฟล์ด้วย Promise เพื่อให้รอไฟล์เขียนเสร็จ
+    await new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const stream = fs.createWriteStream(filePath);
+
+      doc.pipe(stream);
+
+      // ⚠️ โหลดฟอนต์ภาษาไทย (ถ้าโปรเจกต์คุณไม่มีไฟล์นี้ให้คอมเมนต์บรรทัดล่างทิ้ง แต่ภาษาไทยจะอ่านไม่ออก)
+      try {
+        doc.font('./fonts/THSarabunNew.ttf');
+      } catch (e) {
+        console.warn("⚠️ ไม่พบไฟล์ฟอนต์ภาษาไทยที่ ./fonts/THSarabunNew.ttf ระบบจะใช้ฟอนต์เริ่มต้นแทน");
+      }
+
+      // สร้างหัวเอกสาร
+      doc.fontSize(24).text(`รายงานข้อมูลโรงภาพยนตร์`, { align: 'center' });
+      doc.fontSize(18).text(`สาขา: ${result.branch || 'ไม่ระบุ'}`, { align: 'center' });
+      doc.moveDown(2);
+
+      // นำข้อมูล Movies มาวนลูปเขียนลง PDF
+      if (result.movies && result.movies.length > 0) {
+        result.movies.forEach((movie, index) => {
+          doc.fontSize(16).text(`${index + 1}. ${movie.name} (เสียง: ${movie.sound})`, { underline: true });
+          doc.fontSize(14).text(`   - จำนวนโรง: ${movie.screens} โรง`);
+          doc.fontSize(14).text(`   - จำนวนรอบฉาย: ${movie.rounds} รอบ`);
+          doc.fontSize(14).text(`   - จำนวนผู้ชม: ${movie.people} คน`);
+          doc.fontSize(14).text(`   - ยอดเงิน: ${movie.money.toLocaleString()} บาท`);
+          doc.moveDown();
+        });
+      } else {
+        doc.fontSize(16).text("ไม่มีข้อมูลภาพยนตร์ตามเงื่อนไข", { align: 'center' });
+      }
+
+      doc.end(); // สั่งจบการเขียน PDF
+
+      stream.on('finish', resolve);
+      stream.on('error', reject);
+    });
+
+    console.log(`💾 บันทึกไฟล์ PDF สำเร็จ: ${filePath}`);
+
     res.json({
       success: true,
       fileName: fileName,
@@ -203,15 +224,15 @@ app.get("/download/:filename", (req, res) => {
   const filePath = path.join("./saved_outputs", fileName);
 
   if (fs.existsSync(filePath)) {
-    res.download(filePath, fileName); // บังคับให้มือถือสั่งดาวน์โหลดไฟล์ทันที
+    // 📌 แจ้งบราวเซอร์ว่านี่คือไฟล์ PDF เพื่อให้โหลดหรือแสดงผลได้ถูกต้อง
+    res.setHeader('Content-Type', 'application/pdf');
+    res.download(filePath, fileName); 
   } else {
     res.status(404).json({ error: "ไม่พบไฟล์รายงานนี้บนระบบ" });
   }
 });
 
-// ── Start Server ──────────────────────────────────────────────────────────────
 app.listen(3000, () => {
   console.log("🔥 Server is running on http://localhost:3000");
-  // ตรวจสอบจำนวนคีย์ทั้งหมดที่โหลดเข้ามาได้
   console.log(`🔑 API Keys Loaded: ${apiKeys.length} keys found.`);
 });
