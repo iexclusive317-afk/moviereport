@@ -1,0 +1,53 @@
+{
+  "branch": "",
+  "movies": [
+    {
+      "name": "Colony",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 4,
+      "people": 104,
+      "money": 11648
+    },
+    {
+      "name": "Disclosure",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 3,
+      "people": 16,
+      "money": 2908
+    },
+    {
+      "name": "Haunted4",
+      "sound": "TH/EN",
+      "screens": 1,
+      "rounds": 4,
+      "people": 50,
+      "money": 5630
+    },
+    {
+      "name": "Scary6",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 4,
+      "people": 25,
+      "money": 2866
+    },
+    {
+      "name": "MasterOfUn",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 3,
+      "people": 7,
+      "money": 853
+    },
+    {
+      "name": "Mandaloria",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 3,
+      "people": 20,
+      "money": 2602
+    }
+  ]
+}

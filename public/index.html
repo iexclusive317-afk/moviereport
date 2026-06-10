@@ -10,19 +10,19 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #0a0a0f;
-    --card:      #13131a;
-    --elevated:  #1c1c28;
-    --border:    #2a2a3d;
-    --amber:     #f59e0b;
-    --amber-dim: rgba(245,158,11,0.12);
-    --amber-glow:rgba(245,158,11,0.25);
-    --text:      #e2e8f0;
-    --muted:     #94a3b8;
-    --success:   #34d399;
-    --danger:    #f87171;
-    --radius:    14px;
-    --line-green: #06C755; /* สีประจำแอป LINE */
+    --bg:          #0a0a0f;
+    --card:        #13131a;
+    --elevated:    #1c1c28;
+    --border:      #2a2a3d;
+    --amber:       #f59e0b;
+    --amber-dim:   rgba(245,158,11,0.12);
+    --amber-glow:  rgba(245,158,11,0.25);
+    --text:        #e2e8f0;
+    --muted:       #94a3b8;
+    --success:     #34d399;
+    --danger:      #f87171;
+    --radius:      14px;
+    --share-blue:  #007bff; /* สีปุ่มแชร์สากล */
   }
 
   body {
@@ -60,7 +60,7 @@
     border-radius: var(--radius);
     padding: 24px;
     max-width: 660px;
-    margin: 0 auto 16px; /* ปรับลด margin ด้านล่าง */
+    margin: 0 auto 16px;
   }
 
   /* ── Controls row ── */
@@ -119,7 +119,6 @@
     border-color: var(--amber);
     background: var(--amber-dim);
   }
-  /* perforations — the signature element */
   .upload-face::before,
   .upload-face::after {
     content: '';
@@ -165,13 +164,14 @@
   .btn-analyze:active:not(:disabled) { transform: translateY(0); }
   .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  /* ── 🌟 ปุ่มส่ง LINE ดีไซน์พิเศษเข้าธีม ── */
+  /* ── โซนจัดวางปุ่มแชร์ส่งออก PDF ── */
   .action-container {
     max-width: 660px;
     margin: 0 auto 28px;
   }
-  .btn-line {
-    background: var(--line-green);
+  
+  .btn-share-pdf {
+    background: var(--share-blue);
     color: white;
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 700;
@@ -181,15 +181,16 @@
     border: none;
     border-radius: var(--radius);
     cursor: pointer;
-    display: none; /* ซ่อนไว้ก่อน จะเปิดหลังประมวลผลเสร็จ */
+    display: none; /* ซ่อนไว้ก่อน จะเปิดหลังวิเคราะห์เสร็จ */
     align-items: center;
     justify-content: center;
     gap: 10px;
     transition: opacity 0.2s, transform 0.1s;
-    box-shadow: 0 4px 15px rgba(6, 199, 85, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
   }
-  .btn-line:hover { opacity: 0.9; transform: translateY(-1px); }
-  .btn-line:active { transform: translateY(0); }
+
+  .btn-share-pdf:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-share-pdf:active { transform: translateY(0); }
 
   /* ── Spinner ── */
   .spinner {
@@ -412,8 +413,8 @@
 </div>
 
 <div class="action-container">
-  <button class="btn-line" id="shareLineBtn" onclick="shareToLine()">
-    <span>💬</span> ส่งรายงานสรุปยอดเข้าแอป LINE
+  <button class="btn-share-pdf" id="sharePdfBtn" onclick="handleShareOrDownload()">
+    <span>📤</span> แชร์รายงาน / เซฟไฟล์ PDF เข้าเครื่อง
   </button>
 </div>
 
@@ -425,8 +426,8 @@
 </div>
 
 <script>
-  // 🌟 ประกาศตัวแปรหลัก global สำหรับเตรียมดึงชุดข้อมูลผลลัพธ์ไปพิมพ์แชร์ลง LINE
   let globalMovieData = null;
+  let currentJsonFileName = ""; 
 
   function onFileChange(input) {
     const zone = document.getElementById("dropZone");
@@ -459,8 +460,10 @@
         <span>⚠️</span>
         <span>${msg}</span>
       </div>`;
+    document.getElementById("sharePdfBtn").style.display = "none";
   }
 
+  // ฟังก์ชันวาดหน้าจอแสดงผลลัพธ์
   function renderResults(data, fromCache) {
     const movies = data.movies || [];
     if (!movies.length) { showError("ไม่พบข้อมูลหนังในภาพนี้ครับ"); return; }
@@ -476,14 +479,8 @@
     });
 
     let html = "";
-
-    if (fromCache) {
-      html += `<div class="cache-badge">⚡ จาก Cache · ไม่ใช้โควตา API</div>`;
-    }
-
-    if (data.branch) {
-      html += `<div class="branch-badge">📍 ${data.branch}</div>`;
-    }
+    if (fromCache) html += `<div class="cache-badge">⚡ จาก Cache · ไม่ใช้โควตา API</div>`;
+    if (data.branch) html += `<div class="branch-badge">📍 ${data.branch}</div>`;
   
     html += `
       <div class="summary-row">
@@ -541,13 +538,11 @@
     if (!targetTime) { showError("กรุณาระบุเวลาตัดยอดครับ"); return; }
 
     setLoading(true);
-    // ซ่อนปุ่มไลน์ไว้ก่อนหากผู้ใช้ทำการกดยิงรอบใหม่
-    document.getElementById("shareLineBtn").style.display = "none";
+    document.getElementById("sharePdfBtn").style.display = "none";
 
     try {
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        // 🌟 จุดเปลี่ยนที่ 3: ดึงข้อมูลเต็มชิ้นแบบรักษา Header ส่วนหัวของไฟล์ไว้ ไม่หั่นหัวข้อมูลออก (เพื่อส่งไปดักจับแยกประเภทภาพ/PDF ที่ฝั่ง Server)
         reader.onload  = () => resolve(reader.result);
         reader.onerror = () => reject(new Error("อ่านไฟล์ไม่ได้ครับ"));
         reader.readAsDataURL(fileInput.files[0]);
@@ -560,21 +555,15 @@
       });
 
       const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || `เกิดข้อผิดพลาด (${res.status})`);
 
-      if (!res.ok) {
-        throw new Error(resData.error || `เกิดข้อผิดพลาด (${res.status})`);
-      }
-
-      // 🌟 จุดเปลี่ยนที่ 4: ถอดพัสดุและทริกเกอร์ระบบบันทึกไฟล์/แชร์ LINE เมื่อ Server ตอบรับสำเร็จ
-      globalMovieData = resData.data; // บันทึกสถิติเก็บลงโครงสร้างข้อมูลเตรียมเปิดแอปไลน์
+      globalMovieData = resData.data; 
+      currentJsonFileName = resData.fileName; 
       
       renderResults(globalMovieData, resData.fromCache === true);
 
-      // บังคับให้หน้าจอมือถือ/บราวเซอร์เด้งหน้าต่างสั่งดาวน์โหลดรายงาน JSON ทันที
-      window.location.href = `/download/${resData.fileName}`;
-
-      // เปิดแสดงปุ่มส่ง LINE ออกมาให้กดส่งงานต่อได้ทันที
-      document.getElementById("shareLineBtn").style.display = "flex";
+      // เปิดแสดงปุ่มแชร์ส่งออกแบบครอบจักรวาล
+      document.getElementById("sharePdfBtn").style.display = "flex";
 
     } catch (err) {
       showError(err.message);
@@ -583,26 +572,32 @@
     }
   }
 
-  // 🌟 จุดเปลี่ยนที่ 5: ฟังก์ชันจัดฟอร์แมตสรุปรอบตารางหนังฉบับเข้าใจง่าย และสลับหน้าต่างพุ่งเข้า LINE ทันที
-  function shareToLine() {
-    if (!globalMovieData) return;
+  // 📌 ฟังก์ชันหัวใจหลักในการตรวจจับเครื่องและสั่งแชร์กระจายไปทุกแอป
+  async function handleShareOrDownload() {
+    if (!currentJsonFileName) return alert("ไม่พบไฟล์รายงาน");
 
-    let lineMessage = `🎬 สรุปตารางรอบฉายหนัง (${globalMovieData.branch || "ไม่ระบุสาขา"})\n\n`;
+    const pdfUrl = `${window.location.origin}/export-pdf/${currentJsonFileName}`;
+    const branchName = globalMovieData?.branch || "ไม่ระบุสาขา";
 
-    if (globalMovieData.movies && globalMovieData.movies.length > 0) {
-      globalMovieData.movies.forEach(movie => {
-        lineMessage += `🍿 ${movie.name} (${movie.sound})\n`;
-        lineMessage += `👉 ฉาย ${movie.screens} โรง | ทั้งหมด ${movie.rounds} รอบ\n`;
-        lineMessage += `👥 คนดู: ${(movie.people || 0).toLocaleString()} คน | 💰 รายได้: ${(movie.money || 0).toLocaleString()} บาท\n`;
-        lineMessage += `------------------------\n`;
-      });
+    // 📱 กรณีเปิดบนมือถือ (และระบบรองรับ Web Share)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `รายงานสรุปยอดโรงภาพยนตร์ - ${branchName}`,
+          text: `สรุปตารางรอบฉายหนังประจำวันของ ${branchName} ดาวน์โหลดหรือดูรายงานเพิ่มเติมได้ที่ลิงก์นี้`,
+          url: pdfUrl
+        });
+        console.log("แชร์สำเร็จ!");
+      } catch (err) {
+        // ดักกรณีผู้ใช้กดกดยกเลิกกลางคัน จะได้ไม่ขึ้นหน้าต่างเออเรอร์พัง
+        if (err.name !== "AbortError") {
+          window.open(pdfUrl, "_blank");
+        }
+      }
     } else {
-      lineMessage += `❌ ไม่พบข้อมูลตารางภาพยนตร์`;
+      // 💻 กรณีเปิดบนคอมฯ ทั่วไป หรือบราวเซอร์ที่ไม่รองรับระบบแชร์ จะทำการเปิดไฟล์ PDF ให้เซฟตรง ๆ แทน
+      window.open(pdfUrl, "_blank");
     }
-
-    // เจาะระบบเปิดแอป LINE ผ่านเบราวเซอร์บนโทรศัพท์เคลื่อนที่อัตโนมัติ
-    const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(lineMessage)}`;
-    window.open(lineUrl, "_blank");
   }
 </script>
 </body>

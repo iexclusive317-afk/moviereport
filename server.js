@@ -1,18 +1,18 @@
 import express from "express";
-import cors from "cors"; 
+import cors from "cors"; // ป้องกันปัญหาบราวเซอร์บล็อก (CORS)
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import fs from "fs";         
-import path from "path";     
-import PDFDocument from "pdfkit"; // 📌 1. เพิ่มไลบรารีสร้าง PDF
+import fs from "fs";         // ระบบจัดการไฟล์ของ Node.js
+import path from "path";     // ระบบจัดการที่อยู่ไฟล์
+import PDFDocument from "pdfkit"; // ไลบรารีสร้าง PDF แยกต่างหาก
 
 dotenv.config();
 
 const app = express();
 
 // ── Middleware ──────────────────────────────────────────────────────────────
-app.use(cors());
+app.use(cors()); 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static("public"));
 
@@ -62,7 +62,7 @@ function setCache(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── Gemini call ───────────────────────────────────────────────────────────────
+// ── Gemini call ──────────────────────────────────────────────────────────────
 async function callGemini(base64, targetTime, mimeType = "image/png", retries = 2) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90_000);
@@ -134,7 +134,7 @@ function geminiErrorResponse(err) {
   return { status: 500, message: `เกิดข้อผิดพลาดบนเซิร์ฟเวอร์: ${err.message}` };
 }
 
-// ── [Route 1] หลักสำหรับประมวลผล + บันทึกไฟล์ (อัปเดตเป็น PDF) ───────────────────────
+// ── [Route 1] วิเคราะห์เงียบ ๆ แล้วคืนค่าเป็น JSON ───────────────────────────────
 app.post("/analyze", async (req, res) => {
   const { image, targetTime } = req.body;
 
@@ -162,50 +162,10 @@ app.post("/analyze", async (req, res) => {
       fs.mkdirSync(outputFolder);
     }
 
-    // 📌 2. ตั้งชื่อไฟล์เป็น .pdf
-    const fileName = `report-${Date.now()}.pdf`;
+    const fileName = `report-${Date.now()}.json`;
     const filePath = path.join(outputFolder, fileName);
-
-    // 📌 3. วาดและสร้าง PDF ลงไฟล์ด้วย Promise เพื่อให้รอไฟล์เขียนเสร็จ
-    await new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50 });
-      const stream = fs.createWriteStream(filePath);
-
-      doc.pipe(stream);
-
-      // ⚠️ โหลดฟอนต์ภาษาไทย (ถ้าโปรเจกต์คุณไม่มีไฟล์นี้ให้คอมเมนต์บรรทัดล่างทิ้ง แต่ภาษาไทยจะอ่านไม่ออก)
-      try {
-        doc.font('./fonts/THSarabunNew.ttf');
-      } catch (e) {
-        console.warn("⚠️ ไม่พบไฟล์ฟอนต์ภาษาไทยที่ ./fonts/THSarabunNew.ttf ระบบจะใช้ฟอนต์เริ่มต้นแทน");
-      }
-
-      // สร้างหัวเอกสาร
-      doc.fontSize(24).text(`รายงานข้อมูลโรงภาพยนตร์`, { align: 'center' });
-      doc.fontSize(18).text(`สาขา: ${result.branch || 'ไม่ระบุ'}`, { align: 'center' });
-      doc.moveDown(2);
-
-      // นำข้อมูล Movies มาวนลูปเขียนลง PDF
-      if (result.movies && result.movies.length > 0) {
-        result.movies.forEach((movie, index) => {
-          doc.fontSize(16).text(`${index + 1}. ${movie.name} (เสียง: ${movie.sound})`, { underline: true });
-          doc.fontSize(14).text(`   - จำนวนโรง: ${movie.screens} โรง`);
-          doc.fontSize(14).text(`   - จำนวนรอบฉาย: ${movie.rounds} รอบ`);
-          doc.fontSize(14).text(`   - จำนวนผู้ชม: ${movie.people} คน`);
-          doc.fontSize(14).text(`   - ยอดเงิน: ${movie.money.toLocaleString()} บาท`);
-          doc.moveDown();
-        });
-      } else {
-        doc.fontSize(16).text("ไม่มีข้อมูลภาพยนตร์ตามเงื่อนไข", { align: 'center' });
-      }
-
-      doc.end(); // สั่งจบการเขียน PDF
-
-      stream.on('finish', resolve);
-      stream.on('error', reject);
-    });
-
-    console.log(`💾 บันทึกไฟล์ PDF สำเร็จ: ${filePath}`);
+    fs.writeFileSync(filePath, JSON.stringify(result, null, 2), "utf-8");
+    console.log(`💾 บันทึกไฟล์ข้อมูลดิบสำเร็จ: ${filePath}`);
 
     res.json({
       success: true,
@@ -218,20 +178,107 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
-// ── [Route 2] สำหรับเปิดให้คนใช้มือถือคลิกดาวน์โหลดไฟล์เพื่อแชร์ต่อ ─────────────────────
+// ── [Route 2 แก้ไขขั้นเด็ดขาด 🚀] ผูก Event ป้องกันแครชพัง + โหลดฟอนต์ไทยแท้ 100% ──
+app.get("/export-pdf/:filename", (req, res) => {
+  const jsonFileName = req.params.filename; 
+  const jsonFilePath = path.join("./saved_outputs", jsonFileName);
+
+  if (!fs.existsSync(jsonFilePath)) {
+    return res.status(404).json({ error: "ไม่พบข้อมูลรายงานภาพยนตร์นี้บนระบบ" });
+  }
+
+  try {
+    const rawData = fs.readFileSync(jsonFilePath, "utf-8");
+    const result = JSON.parse(rawData);
+    const pdfFileName = jsonFileName.replace(".json", ".pdf");
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=${pdfFileName}`);
+
+    const doc = new PDFDocument({ margin: 50, autoFirstPage: true });
+    
+    // สำคัญ: ต้อง pipe ก่อนเริ่มเขียนข้อมูลใดๆ
+    doc.pipe(res);
+
+    const fontPath = path.join(process.cwd(), "fonts", "THSarabunNew.ttf");
+    if (fs.existsSync(fontPath)) {
+      doc.registerFont("THSarabun", fontPath);
+      doc.font("THSarabun");
+    }
+
+    doc.on("pageAdded", () => {
+      doc.font("THSarabun");
+    });
+
+    const movies = result.movies || [];
+    const totalScreens = movies.reduce((a, m) => a + (m.screens || 0), 0);
+    const totalPeople  = movies.reduce((a, m) => a + (m.people || 0), 0);
+    const totalMoney   = movies.reduce((a, m) => a + (m.money || 0), 0);
+
+    // วาดเนื้อหา
+    doc.fillColor("#f59e0b").fontSize(24).text(`🎬 Cinema Dashboard Report`, { align: "center" });
+    doc.fillColor("#334155").fontSize(16).text(`สาขา: ${result.branch || "ไม่ระบุสาขา"}`, { align: "center" });
+    doc.moveDown(1);
+
+    const startY = doc.y;
+    doc.rect(50, startY, 512, 50).fillAndStroke("#f8fafc", "#e2e8f0");
+    doc.fillColor("#0f172a");
+    
+    doc.fontSize(11).text("โรงภาพยนตร์ทั้งหมด", 50, startY + 10, { width: 170, align: "center" });
+    doc.fontSize(14).text(`${totalScreens} โรง`, 50, startY + 28, { width: 170, align: "center" });
+
+    doc.fontSize(11).text("จำนวนผู้ชมรวม", 220, startY + 10, { width: 170, align: "center" });
+    doc.fontSize(14).text(`${totalPeople.toLocaleString()} คน`, 220, startY + 28, { width: 170, align: "center" });
+
+    doc.fontSize(11).text("รายได้รวมทั้งหมด", 390, startY + 10, { width: 170, align: "center" });
+    doc.fontSize(14).fillColor("#16a34a").text(`฿${totalMoney.toLocaleString()}`, 390, startY + 28, { width: 170, align: "center" });
+
+    doc.text("", 50, startY + 70); 
+    doc.fontSize(15).text("📋 รายละเอียดรายได้จำแนกตามเรื่อง", { underline: true });
+    doc.moveDown(0.5);
+
+    if (movies.length > 0) {
+      movies.forEach((movie, index) => {
+        if (doc.y > 620) doc.addPage();
+        doc.fontSize(14).fillColor("#1e3a8a").text(`${index + 1}. ${movie.name}`);
+        doc.fontSize(12).fillColor("#475569").text(`    🔊 ระบบเสียง: ${movie.sound}`);
+        doc.text(`    🔹 จำนวน: ${movie.screens} โรง | รอบฉาย: ${movie.rounds} รอบ`);
+        doc.text(`    👤 ผู้ชม: ${movie.people.toLocaleString()} คน`);
+        doc.fontSize(12).fillColor("#16a34a").text(`    💰 สร้างรายได้: ${movie.money.toLocaleString()} บาท`);
+        doc.moveDown(0.4);
+      });
+    }
+
+    doc.fontSize(9).fillColor("#94a3b8").text(`รายงานนี้สร้างขึ้นอัตโนมัติเมื่อเวลา: ${new Date().toLocaleString('th-TH')}`, 50, 750, { align: "center" });
+
+    // สั่งจบการเขียน PDF
+    doc.end();
+
+  } catch (err) {
+    console.error("❌ เกิดข้อผิดพลาดในการสร้าง PDF:", err);
+    // หากเกิด Error ก่อนที่จะส่งข้อมูลออกไป ให้ส่งสถานะกลับ
+    if (!res.headersSent) {
+      res.status(500).json({ error: "เซิร์ฟเวอร์ไม่สามารถแปลงไฟล์เป็น PDF ได้" });
+    } else {
+      // หากส่งไปแล้ว ให้จบ stream ทันที
+      res.end();
+    }
+  }
+});
+
+// ── [Route 3] สำหรับดาวน์โหลดไฟล์ JSON ต้นฉบับ ───────────────────
 app.get("/download/:filename", (req, res) => {
   const fileName = req.params.filename;
   const filePath = path.join("./saved_outputs", fileName);
 
   if (fs.existsSync(filePath)) {
-    // 📌 แจ้งบราวเซอร์ว่านี่คือไฟล์ PDF เพื่อให้โหลดหรือแสดงผลได้ถูกต้อง
-    res.setHeader('Content-Type', 'application/pdf');
     res.download(filePath, fileName); 
   } else {
     res.status(404).json({ error: "ไม่พบไฟล์รายงานนี้บนระบบ" });
   }
 });
 
+// ── Start Server ──────────────────────────────────────────────────────────────
 app.listen(3000, () => {
   console.log("🔥 Server is running on http://localhost:3000");
   console.log(`🔑 API Keys Loaded: ${apiKeys.length} keys found.`);
