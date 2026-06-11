@@ -1,11 +1,11 @@
 import express from "express";
-import cors from "cors"; // ป้องกันปัญหาบราวเซอร์บล็อก (CORS)
+import cors from "cors"; 
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import fs from "fs";         // ระบบจัดการไฟล์ของ Node.js
-import path from "path";     // ระบบจัดการที่อยู่ไฟล์
-import PDFDocument from "pdfkit"; // ไลบรารีสร้าง PDF แยกต่างหาก
+import fs from "fs";         
+import path from "path";     
+import PDFDocument from "pdfkit"; 
 
 dotenv.config();
 
@@ -82,7 +82,7 @@ async function callGemini(base64, targetTime, mimeType = "image/png", retries = 
 4. Admis และ Amount คือคนละคอลัมน์ อย่าสับสน
 5. "screens" = จำนวนโรงที่ฉายหนังเรื่องนั้น
 6. "rounds" = จำนวนรอบที่ผ่านเงื่อนไข
-7. รวมหนงชื่อเดียวกัน + เสียงเดียวกันเข้าด้วยกัน
+7. แยกหนังตามชื่อและระบบเสียงที่ปรากฏในตาราง ห้ามรวมข้ามระบบเสียง
 8. "branch" = ชื่อสาขาจากช่อง Branch ในตาราง
 9. ตอบเป็น JSON เท่านั้น ห้ามมีข้อความอื่น
 {"branch": "", "movies": [{"name": "", "sound": "", "screens": 0, "rounds": 0, "people": 0, "money": 0}]}`,
@@ -134,7 +134,7 @@ function geminiErrorResponse(err) {
   return { status: 500, message: `เกิดข้อผิดพลาดบนเซิร์ฟเวอร์: ${err.message}` };
 }
 
-// ── [Route 1] วิเคราะห์เงียบ ๆ แล้วคืนค่าเป็น JSON ───────────────────────────────
+// ── [Route 1] วิเคราะห์และบันทึกผล ───────────────────────────────────────────────
 app.post("/analyze", async (req, res) => {
   const { image, targetTime } = req.body;
 
@@ -178,7 +178,7 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
-// ── [Route 2 แก้ไขขั้นเด็ดขาด 🚀] ผูก Event ป้องกันแครชพัง + โหลดฟอนต์ไทยแท้ 100% ──
+// ── [Route 2 แก้ไขสมบูรณ์แบบ 🛠️] บังคับเลย์เอาต์แถวแนวนอนสไตล์เว็บ ไม่ว่าข้อมูลจะเป็นอย่างไร ──
 app.get("/export-pdf/:filename", (req, res) => {
   const jsonFileName = req.params.filename; 
   const jsonFilePath = path.join("./saved_outputs", jsonFileName);
@@ -195,9 +195,8 @@ app.get("/export-pdf/:filename", (req, res) => {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=${pdfFileName}`);
 
-    const doc = new PDFDocument({ margin: 50, autoFirstPage: true });
-    
-    // สำคัญ: ต้อง pipe ก่อนเริ่มเขียนข้อมูลใดๆ
+    // สร้างเอกสาร PDF ขนาดมาตรฐาน A4 คลีนๆ สีขาวเด่นชัด
+    const doc = new PDFDocument({ margin: 45, autoFirstPage: true });
     doc.pipe(res);
 
     const fontPath = path.join(process.cwd(), "fonts", "THSarabunNew.ttf");
@@ -215,52 +214,80 @@ app.get("/export-pdf/:filename", (req, res) => {
     const totalPeople  = movies.reduce((a, m) => a + (m.people || 0), 0);
     const totalMoney   = movies.reduce((a, m) => a + (m.money || 0), 0);
 
-    // วาดเนื้อหา
-    doc.fillColor("#f59e0b").fontSize(24).text(`🎬 Cinema Dashboard Report`, { align: "center" });
-    doc.fillColor("#334155").fontSize(16).text(`สาขา: ${result.branch || "ไม่ระบุสาขา"}`, { align: "center" });
+    // 1. ส่วนหัวรายงานสไตล์เว็บบอร์ดบริหาร
+    doc.fillColor("#0f172a").fontSize(22).text(`📈 Cinema Sales Dashboard`, { align: "left" });
+    doc.fillColor("#64748b").fontSize(13).text(`สถานที่/สาขา: ${result.branch || "ไม่ระบุสาขาข้อมูลในระบบ"}`, { align: "left" });
     doc.moveDown(1);
 
-    const startY = doc.y;
-    doc.rect(50, startY, 512, 50).fillAndStroke("#f8fafc", "#e2e8f0");
+    // 2. แผงควบคุมสรุปข้อมูลหลัก (Summary Cards แนวนอน 3 บล็อกสไตล์หน้าเว็บ)
+    const cardY = doc.y;
+    doc.rect(45, cardY, 505, 55).fillAndStroke("#f8fafc", "#cbd5e1");
     doc.fillColor("#0f172a");
-    
-    doc.fontSize(11).text("โรงภาพยนตร์ทั้งหมด", 50, startY + 10, { width: 170, align: "center" });
-    doc.fontSize(14).text(`${totalScreens} โรง`, 50, startY + 28, { width: 170, align: "center" });
 
-    doc.fontSize(11).text("จำนวนผู้ชมรวม", 220, startY + 10, { width: 170, align: "center" });
-    doc.fontSize(14).text(`${totalPeople.toLocaleString()} คน`, 220, startY + 28, { width: 170, align: "center" });
+    doc.fontSize(11).text("โรงภาพยนตร์ทั้งหมด", 45, cardY + 12, { width: 168, align: "center" });
+    doc.fontSize(15).text(`${totalScreens} โรง`, 45, cardY + 28, { width: 168, align: "center" });
 
-    doc.fontSize(11).text("รายได้รวมทั้งหมด", 390, startY + 10, { width: 170, align: "center" });
-    doc.fontSize(14).fillColor("#16a34a").text(`฿${totalMoney.toLocaleString()}`, 390, startY + 28, { width: 170, align: "center" });
+    doc.fontSize(11).text("ผู้ชมสะสมรวม", 213, cardY + 12, { width: 168, align: "center" });
+    doc.fontSize(15).text(`${totalPeople.toLocaleString()} คน`, 213, cardY + 28, { width: 168, align: "center" });
 
-    doc.text("", 50, startY + 70); 
-    doc.fontSize(15).text("📋 รายละเอียดรายได้จำแนกตามเรื่อง", { underline: true });
+    doc.fontSize(11).text("ยอดขายรวมสุทธิ", 381, cardY + 12, { width: 168, align: "center" });
+    doc.fontSize(15).fillColor("#16a34a").text(`฿${totalMoney.toLocaleString()}`, 381, cardY + 28, { width: 168, align: "center" });
+
+    // ขยับพิกัดลงมาด้านล่างแผงสรุป
+    doc.text("", 45, cardY + 75);
+    doc.fontSize(14).fillColor("#0f172a").text("📋 รายละเอียดรายได้จำแนกตามเรื่อง (เรียงตามข้อมูลระบบ)", { underline: false });
     doc.moveDown(0.5);
+
+    // 3. เริ่มลูปวาดกล่องแถวแนวนอนรายตัวหนัง (Web Component Layout)
+    let currentY = doc.y;
 
     if (movies.length > 0) {
       movies.forEach((movie, index) => {
-        if (doc.y > 620) doc.addPage();
-        doc.fontSize(14).fillColor("#1e3a8a").text(`${index + 1}. ${movie.name}`);
-        doc.fontSize(12).fillColor("#475569").text(`    🔊 ระบบเสียง: ${movie.sound}`);
-        doc.text(`    🔹 จำนวน: ${movie.screens} โรง | รอบฉาย: ${movie.rounds} รอบ`);
-        doc.text(`    👤 ผู้ชม: ${movie.people.toLocaleString()} คน`);
-        doc.fontSize(12).fillColor("#16a34a").text(`    💰 สร้างรายได้: ${movie.money.toLocaleString()} บาท`);
-        doc.moveDown(0.4);
+        // เช็คความสูงหน้ากระดาษ (หากกล่องจะล้นระยะ 720px ให้ตัดขึ้นหน้าใหม่ทันทีเพื่อความระเบียบ)
+        if (currentY > 700) {
+          doc.addPage();
+          currentY = 45;
+        }
+
+        // วาดกล่องพื้นหลังขาวขอบเทาอ่อนสไตล์กล่องหน้าเว็บ
+        doc.roundedRect(45, currentY, 505, 48, 4).lineWidth(1).fillAndStroke("#ffffff", "#e2e8f0");
+
+        // พิมพ์ชื่อหนังและลำดับ (จัดชิดซ้ายสุดของกล่อง สีน้ำเงินเทาเข้ม)
+        doc.fillColor("#1e293b").fontSize(14);
+        doc.text(`${index + 1}. ${movie.name}`, 55, currentY + 15, { width: 150, lineBreak: false });
+
+        // พิมพ์แท็กระบบเสียงสไตล์ Badge ป้ายกำกับ (ฟอนต์สีขาวบนกล่องเทาเข้ม)
+        doc.roundedRect(210, currentY + 13, 50, 22, 3).fill("#475569");
+        doc.fillColor("#ffffff").fontSize(10).text(`${movie.sound || "TH/--"}`, 210, currentY + 18, { width: 50, align: "center" });
+
+        // ข้อมูลตัวเลขคอลัมน์ด้านขวา (ล็อคพิกัดแกน X ตายตัว บังคับเป็นแถวหน้ากระดานแนวนอนเสมอ)
+        doc.fillColor("#334155").fontSize(12);
+        doc.text(`${movie.screens} โรง`, 275, currentY + 17, { width: 45, align: "center" });
+        doc.text(`${movie.rounds} รอบ`, 325, currentY + 17, { width: 45, align: "center" });
+        doc.text(`${movie.people.toLocaleString()} คน`, 375, currentY + 17, { width: 50, align: "center" });
+
+        // ยอดเงินสุทธิปิดท้ายแถวขวาสุด (เน้นฟอนต์สีเขียวเข้มเพื่อความชัดเจนดึงดูดสายตา)
+        doc.fillColor("#16a34a").fontSize(13);
+        const formattedMoney = `${movie.money.toLocaleString()} บาท`;
+        doc.text(formattedMoney, 430, currentY + 17, { width: 110, align: "right" });
+
+        // เว้นช่องว่างระหว่างกล่องแต่ละเรื่อง 10 พิกัด (ความสูงกล่อง 48 + ช่องว่าง 10 = 58)
+        currentY += 58; 
       });
+    } else {
+      doc.fillColor("#64748b").fontSize(13).text("ไม่พบข้อมูลภาพยนตร์ผ่านเงื่อนไขเวลากรุณาตรวจสอบอีกครั้ง", 45, currentY + 10);
     }
 
-    doc.fontSize(9).fillColor("#94a3b8").text(`รายงานนี้สร้างขึ้นอัตโนมัติเมื่อเวลา: ${new Date().toLocaleString('th-TH')}`, 50, 750, { align: "center" });
+    // ส่วนล่างสุดบอกเวลาบันทึก
+    doc.fontSize(9).fillColor("#94a3b8").text(`พิมพ์รายงานจากระบบ ณ วันเวลา: ${new Date().toLocaleString('th-TH')}`, 45, 770, { align: "left" });
 
-    // สั่งจบการเขียน PDF
     doc.end();
 
   } catch (err) {
-    console.error("❌ เกิดข้อผิดพลาดในการสร้าง PDF:", err);
-    // หากเกิด Error ก่อนที่จะส่งข้อมูลออกไป ให้ส่งสถานะกลับ
+    console.error("❌ เกิดข้อผิดพลาดร้ายแรงในการจัดหน้า PDF แนวนอน:", err);
     if (!res.headersSent) {
-      res.status(500).json({ error: "เซิร์ฟเวอร์ไม่สามารถแปลงไฟล์เป็น PDF ได้" });
+      res.status(500).json({ error: "เซิร์ฟเวอร์ไม่สามารถแปลงโครงสร้างตารางเป็นรูปแบบ PDF ได้" });
     } else {
-      // หากส่งไปแล้ว ให้จบ stream ทันที
       res.end();
     }
   }
@@ -280,6 +307,6 @@ app.get("/download/:filename", (req, res) => {
 
 // ── Start Server ──────────────────────────────────────────────────────────────
 app.listen(3000, () => {
-  console.log("🔥 Server is running on http://localhost:3000");
-  console.log(`🔑 API Keys Loaded: ${apiKeys.length} keys found.`);
+  console.log("🔥 Server หลังบ้านทำงานเรียบร้อยที่พอร์ต 3000");
+  console.log(`🔑 ตรวจพบจำนวน API Keys ทั้งหมด: ${apiKeys.length} คีย์`);
 });

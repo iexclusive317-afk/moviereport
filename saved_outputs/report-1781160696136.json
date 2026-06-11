@@ -1,0 +1,61 @@
+{
+  "branch": "Major Cineplex",
+  "movies": [
+    {
+      "name": "Colony",
+      "sound": "KR/ET",
+      "screens": 3,
+      "rounds": 3,
+      "people": 13,
+      "money": 1019
+    },
+    {
+      "name": "Colony",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 1,
+      "people": 5,
+      "money": 725
+    },
+    {
+      "name": "Haunted4",
+      "sound": "TH/EN",
+      "screens": 1,
+      "rounds": 1,
+      "people": 2,
+      "money": 500
+    },
+    {
+      "name": "Mandaloria",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 2,
+      "money": 270
+    },
+    {
+      "name": "MasterOfUn",
+      "sound": "EN/TH",
+      "screens": 2,
+      "rounds": 2,
+      "people": 8,
+      "money": 0
+    },
+    {
+      "name": "Scary6",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 2,
+      "money": 0
+    },
+    {
+      "name": "SheepDetec",
+      "sound": "EN/TH",
+      "screens": 2,
+      "rounds": 2,
+      "people": 3,
+      "money": 270
+    }
+  ]
+}
