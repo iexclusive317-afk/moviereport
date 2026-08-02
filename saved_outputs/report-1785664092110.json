@@ -1,0 +1,29 @@
+{
+  "branch": "Major Central westville",
+  "movies": [
+    {
+      "name": "SPIDER MAN BRAND NEW DAY",
+      "sound": "EN/TH",
+      "screens": 3,
+      "rounds": 6,
+      "people": 194,
+      "money": 36718
+    },
+    {
+      "name": "THE ODYSSEY",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 2,
+      "people": 30,
+      "money": 5650
+    },
+    {
+      "name": "SPIDER MAN BRAND NEW DAY",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 2,
+      "people": 58,
+      "money": 10176
+    }
+  ]
+}

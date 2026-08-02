@@ -1,0 +1,29 @@
+{
+  "branch": "",
+  "movies": [
+    {
+      "name": "SpiderMan4",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 2,
+      "people": 47,
+      "money": 10415
+    },
+    {
+      "name": "SpiderMan4",
+      "sound": "EN/TH",
+      "screens": 4,
+      "rounds": 7,
+      "people": 464,
+      "money": 104203
+    },
+    {
+      "name": "TheOdyssey",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 2,
+      "people": 60,
+      "money": 12115
+    }
+  ]
+}

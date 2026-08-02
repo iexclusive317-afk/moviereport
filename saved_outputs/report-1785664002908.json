@@ -1,0 +1,21 @@
+{
+  "branch": "Lotus Bangyai",
+  "movies": [
+    {
+      "name": "SpiderMan4",
+      "sound": "TH/--",
+      "screens": 5,
+      "rounds": 11,
+      "people": 531,
+      "money": 111067
+    },
+    {
+      "name": "TheOdyssey",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 2,
+      "people": 37,
+      "money": 7279
+    }
+  ]
+}

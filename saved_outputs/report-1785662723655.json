@@ -1,0 +1,53 @@
+{
+  "branch": "SF CINEMA CRYSTAL - RATCHAPRUEK",
+  "movies": [
+    {
+      "name": "THE ODYSSEY",
+      "sound": "Digital -",
+      "screens": 0,
+      "rounds": 0,
+      "people": 0,
+      "money": 0
+    },
+    {
+      "name": "SPIDER-MAN : BRAND NEW DAY",
+      "sound": "Digital -",
+      "screens": 0,
+      "rounds": 0,
+      "people": 0,
+      "money": 0
+    },
+    {
+      "name": "SPIDER-MAN : BRAND NEW DAY",
+      "sound": "3D Digital -",
+      "screens": 0,
+      "rounds": 0,
+      "people": 0,
+      "money": 0
+    },
+    {
+      "name": "สไปเดอร์-แมน : แบรนด์ นิว เดย์",
+      "sound": "Digital -",
+      "screens": 0,
+      "rounds": 0,
+      "people": 0,
+      "money": 0
+    },
+    {
+      "name": "โมอาน่า / MINIONS & MONSTERS",
+      "sound": "Digital -",
+      "screens": 0,
+      "rounds": 0,
+      "people": 0,
+      "money": 0
+    },
+    {
+      "name": "พินอคคิโอ หุ่นไม้สายเชือด",
+      "sound": "-",
+      "screens": 0,
+      "rounds": 0,
+      "people": 0,
+      "money": 0
+    }
+  ]
+}
