@@ -61,7 +61,7 @@ function setCache(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── Gemini call (ปรับ Prompt ให้ดึงค่า Gross เท่านั้น) ────────────────────────
+// ── Gemini call (ปรับ Prompt ให้เก็บเฉพาะระบบเสียงปกติ/ภาษา) ─────────────────
 async function callGemini(base64, mimeType = "application/pdf", retries = 2) {
   try {
     console.log(`⏳ กำลังส่งไฟล์ [${mimeType}] ไปให้ Gemini... (รอบที่เหลือ: ${retries})`);
@@ -77,7 +77,7 @@ async function callGemini(base64, mimeType = "application/pdf", retries = 2) {
 กฎเหล็กในการอ่านตารางเอกสาร:
 1. "branch": ชื่อสาขาโรงภาพยนตร์ (เช่น "1142 Major Central westville") — ให้ดึงชื่อสาขาที่ปรากฏในหัวรายงานของหน้านั้นๆ ให้ถูกต้อง
 2. "movie": ชื่อภาพยนตร์เต็มของรอบฉายนั้นๆ (เช่น "SPIDER MAN BRAND NEW DAY", "THE ODYSSEY")
-3. "sound": ระบบภาพและเสียง (เช่น "EN/TH", "TH/--") ถ้าไม่มีให้ใส่ "-"
+3. "sound": ระบบภาพและเสียง ให้ระบุเฉพาะระบบเสียงหรือภาษาเท่านั้น (เช่น "EN/TH", "TH/--") **ให้ตัด/ละเว้นคำว่า Laserplex, IMAX, 4DX, ScreenX ออกทั้งหมด** ถ้าไม่มีให้ใส่ "-"
 4. "theatre": หมายเลขโรงฉายหรือชื่อจอ (เช่น "VIP CINEMA 2", "Theatre 5") ห้ามปล่อยว่าง ให้ดึงชื่อโรงหรือหมายเลขโรงที่คุมรอบฉายนั้นๆ มาใส่ให้ครบทุกแถว
 5. "time": เวลาฉายในรอบนั้นๆ รูปแบบ "HH:MM" (24 ชม.) เช่น "12:00", "15:30", "19:00"
 6. "admis": จำนวนผู้ชม/ที่นั่ง เป็นตัวเลขล้วน ไม่มีคอมมา (ดูจากคอลัมน์ Admits ในแถวนั้น) ถ้าไม่มีให้ใส่ 0
@@ -164,7 +164,20 @@ function aggregateRows(rawRows, targetTime = "23:59") {
   filtered.forEach(row => {
     const branch = (row.branch || "").trim() || "ไม่ระบุสาขา";
     const movie = (row.movie || row.name || "").trim();
-    const sound = (row.sound || "-").trim() || "-";
+    
+    // กรองคำว่า Laserplex และระบบพิเศษอื่นๆ ออกจาก sound ให้เหลือเฉพาะระบบเสียงปกติ
+    let soundRaw = (row.sound || "-").trim();
+    let sound = soundRaw
+      .replace(/laserplex/gi, "")
+      .replace(/imax/gi, "")
+      .replace(/4dx/gi, "")
+      .replace(/screenx/gi, "")
+      .replace(/dolby/gi, "")
+      .trim();
+      
+    if (!sound || sound === "-") {
+      sound = "-";
+    }
     
     let theatre = (row.theatre || row.screen || "").toString().trim();
     if (!theatre || theatre === "-" || theatre === "undefined") {
@@ -211,7 +224,7 @@ function aggregateRows(rawRows, targetTime = "23:59") {
     screens: g.theatres.size > 0 ? g.theatres.size : 1,
     showings: g.times.size > 0 ? g.times.size : 1,
     seats: g.seats,
-    revenue: g.grossRevenue, // ใช้ยอดรวมเฉพาะ Gross เท่านั้น
+    revenue: g.grossRevenue,
   }));
 
   aggregatedArray.sort((a, b) => {

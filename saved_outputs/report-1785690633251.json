@@ -1,0 +1,53 @@
+{
+  "branch": "ICON Siam",
+  "movies": [
+    {
+      "name": "JanaNayaga",
+      "sound": "TA/EN",
+      "screens": 1,
+      "rounds": 1,
+      "people": 11,
+      "money": 3710
+    },
+    {
+      "name": "SpiderMan4",
+      "sound": "TH",
+      "screens": 2,
+      "rounds": 7,
+      "people": 571,
+      "money": 126257
+    },
+    {
+      "name": "SpiderMan4",
+      "sound": "EN/TH",
+      "screens": 4,
+      "rounds": 15,
+      "people": 1427,
+      "money": 362921
+    },
+    {
+      "name": "SpiderMan4",
+      "sound": "4DX",
+      "screens": 1,
+      "rounds": 4,
+      "people": 366,
+      "money": 165310
+    },
+    {
+      "name": "TheOdyssey",
+      "sound": "IMAX",
+      "screens": 1,
+      "rounds": 4,
+      "people": 976,
+      "money": 472500
+    },
+    {
+      "name": "TheOdyssey",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 2,
+      "people": 197,
+      "money": 50333
+    }
+  ]
+}

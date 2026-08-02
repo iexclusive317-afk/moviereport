@@ -1,0 +1,21 @@
+{
+  "branch": "1142 Major Central westville",
+  "movies": [
+    {
+      "name": "SPIDER MAN BRAND NEW DAY",
+      "sound": "Laserplex",
+      "screens": 4,
+      "rounds": 14,
+      "people": 735,
+      "money": 141901
+    },
+    {
+      "name": "THE ODYSSEY",
+      "sound": "Laserplex",
+      "screens": 1,
+      "rounds": 4,
+      "people": 74,
+      "money": 14550
+    }
+  ]
+}
