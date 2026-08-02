@@ -659,12 +659,66 @@ app.get("/", (req, res) => {
     </div>
   </section>
 
+  <!-- SCHEDULE ORGANIZER -->
+  <section class="panel">
+    <h2><span class="no">5</span> จัดระเบียบข้อมูลจากไฟล์ Excel (อัตโนมัติ)</h2>
+    <p class="hint">
+      รองรับ 2 รูปแบบ ระบบจะตรวจจับให้อัตโนมัติตามชีตที่เลือก:<br>
+      • <strong>ตารางหนังเข้าฉายแยกตามค่าย</strong> (คอลัมน์ วันที่เข้าฉาย / ชื่อหนัง / เวลา / เสียง / เวอร์ชั่น เรียงเป็นบล็อกตามค่าย)<br>
+      • <strong>รายการลำดับตัวอย่างหนัง (Trailer Order)</strong> (บล็อก ลำดับที่ / ชื่อเรื่อง / Date / Time แยกตามพื้นที่โรงฉาย)<br>
+      ประมวลผลในเบราว์เซอร์ทันที ไม่ต้องผ่าน Gemini
+    </p>
+
+    <div class="input-box" style="margin-bottom:14px;">
+      <label>📁 เลือกไฟล์ Excel</label>
+      <input type="file" id="scheduleFile" accept=".xlsx,.xls" onchange="handleScheduleFileSelect()">
+      <div id="scheduleSheetPicker" style="display:none; margin-top:10px;">
+        <label style="font-size:12px; color:var(--text-dim); display:block; margin-bottom:6px;">เลือกชีตที่ต้องการจัดระเบียบ:</label>
+        <select id="scheduleSheetSelect" style="width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:8px; font-size:12.5px;"></select>
+      </div>
+      <div class="row-actions">
+        <button class="btn-primary" onclick="runOrganizeSchedule()">จัดระเบียบข้อมูล</button>
+        <button class="btn-success" id="btnExportSchedule" style="display:none;" onclick="exportScheduleExcel()">📊 ดาวน์โหลดเป็น Excel</button>
+      </div>
+      <div class="status-msg" id="scheduleStatus"></div>
+    </div>
+
+    <div id="scheduleResultArea"></div>
+  </section>
+
+  <!-- TRAILER LIST BOARD (image/PDF via Gemini) -->
+  <section class="panel">
+    <h2><span class="no">6</span> วิเคราะห์ตารางตัวอย่างหนังหน้าโรง (Trailer List)</h2>
+    <p class="hint">
+      สำหรับรูปภาพ/PDF ตาราง Trailer List ของโรงหนัง (เช่น คอลัมน์ CINEMA/MOVIE ทางซ้าย และคอลัมน์ NEXT PROGRAM
+      พร้อมรหัสในช่อง เช่น D1, D2, S5, S7, N4) — ส่งให้ Gemini อ่านโครงตารางแล้วแปลงเป็นตารางรายการ
+      "โรง/จอ → หนังที่ฉายอยู่ → ตัวอย่างเรื่องไหน ลำดับที่เท่าไร ฉายวันไหน"
+    </p>
+
+    <div class="input-box">
+      <label>🖼️ อัปโหลดรูปภาพ หรือ 📄 PDF ตาราง Trailer List (เลือกหลายไฟล์ได้)</label>
+      <input type="file" id="trailerFile" accept="image/*,application/pdf" multiple="multiple">
+      <div class="upload-guide">
+        💡 เลือกหลายไฟล์: กด Ctrl ค้าง (คอมฯ) หรือแตะค้างแล้วเลือกเพิ่ม (มือถือ)
+      </div>
+      <div class="row-actions">
+        <button class="btn-primary" onclick="extractTrailerBoard()">วิเคราะห์ตาราง Trailer List</button>
+      </div>
+      <div class="status-msg" id="trailerStatus"></div>
+    </div>
+
+    <div id="trailerResultArea"></div>
+  </section>
+
 </div>
 
 <script>
 let records = [];      // {branch, movie, sound, screens, showings, revenue, seats}
 let reviewBuffer = [];
 let lastSavedFileName = "";
+
+let scheduleWorkbook = null;
+let scheduleRecords = [];   // organized movie-schedule rows for export
 
 function fmt(n){ return Number(n||0).toLocaleString('th-TH'); }
 
