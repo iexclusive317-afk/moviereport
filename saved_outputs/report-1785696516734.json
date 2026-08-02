@@ -1,0 +1,45 @@
+{
+  "branch": "1045 Mega Cineplex",
+  "movies": [
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH, Laserplex",
+      "screens": 1,
+      "rounds": 1,
+      "people": 36,
+      "money": 6960
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH, Laserplex",
+      "screens": 1,
+      "rounds": 1,
+      "people": 29,
+      "money": 7280
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH, Laserplex",
+      "screens": 1,
+      "rounds": 1,
+      "people": 15,
+      "money": 3290
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH, Laserplex",
+      "screens": 1,
+      "rounds": 1,
+      "people": 54,
+      "money": 7100
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH, 2D",
+      "screens": 1,
+      "rounds": 1,
+      "people": 21,
+      "money": 3220
+    }
+  ]
+}

@@ -3,8 +3,8 @@ import cors from "cors";
 import { GoogleGenAI } from "@google/genai";
 import crypto from "crypto";
 import dotenv from "dotenv";
-import fs from "fs";        
-import path from "path";    
+import fs from "fs";       
+import path from "path";   
 import PDFDocument from "pdfkit"; 
 
 dotenv.config();
@@ -61,7 +61,7 @@ function setCache(key, data) {
   cache.set(key, { data, ts: Date.now() });
 }
 
-// ── Gemini call (ปรับ Prompt ให้เก็บเฉพาะระบบเสียงปกติ/ภาษา) ─────────────────
+// ── Gemini call (ปรับ Prompt ให้แยกประเภทระบบพิเศษชัดเจน) ───────────────────
 async function callGemini(base64, mimeType = "application/pdf", retries = 2) {
   try {
     console.log(`⏳ กำลังส่งไฟล์ [${mimeType}] ไปให้ Gemini... (รอบที่เหลือ: ${retries})`);
@@ -73,20 +73,17 @@ async function callGemini(base64, mimeType = "application/pdf", retries = 2) {
         `คุณคือระบบสกัดข้อมูลระดับสูงจากเอกสารรายงานรอบฉายโรงภาพยนตร์ (PDF/รูปภาพ เช่น รายงาน Vista / Major Cineplex)
 
 หน้าที่ของคุณคือ "คัดลอกข้อมูลดิบทีละแถว (Showtime Row / รอบฉายรายบรรทัด)" ให้ครบถ้วนทุกหน้า ห้ามข้ามเด็ดขาด ห้ามสรุปยอดรวมเองโดยเด็ดขาด เพราะระบบหลังบ้านจะนำข้อมูลดิบที่คุณส่งไปประมวลผลต่อ
-
 กฎเหล็กในการอ่านตารางเอกสาร:
-1. "branch": ชื่อสาขาโรงภาพยนตร์ (เช่น "1142 Major Central westville") — ให้ดึงชื่อสาขาที่ปรากฏในหัวรายงานของหน้านั้นๆ ให้ถูกต้อง
+1. "branch": ชื่อสาขาโรงภาพยนตร์ (เช่น "1142 Major Central westville") — ให้ดึงชื่อสาขาที่ปรากฏในหัวรายงานของหน้านั้นๆให้ถูกต้องโดยตัดตัวเลขรหัสสาขาออก (เช่น "1142 "ให้ตัดออก)
 2. "movie": ชื่อภาพยนตร์เต็มของรอบฉายนั้นๆ (เช่น "SPIDER MAN BRAND NEW DAY", "THE ODYSSEY")
-3. "sound": ระบบภาพและเสียง ให้ระบุเฉพาะระบบเสียงหรือภาษาเท่านั้น (เช่น "EN/TH", "TH/--") **ให้ตัด/ละเว้นคำว่า Laserplex, IMAX, 4DX, ScreenX ออกทั้งหมด** ถ้าไม่มีให้ใส่ "-"
+3. "sound": ระบบภาพและเสียง ให้ระบุประเภทให้ชัดเจน เช่น ระบบพิเศษ "IMAX", "4DX", "SCREENX", "DOLBY ATMOS" หรือระบบเสียงปกติเช่น "EN", "TH", "EN/TH" ถ้าไม่มีให้ใส่ "-"
 4. "theatre": หมายเลขโรงฉายหรือชื่อจอ (เช่น "VIP CINEMA 2", "Theatre 5") ห้ามปล่อยว่าง ให้ดึงชื่อโรงหรือหมายเลขโรงที่คุมรอบฉายนั้นๆ มาใส่ให้ครบทุกแถว
 5. "time": เวลาฉายในรอบนั้นๆ รูปแบบ "HH:MM" (24 ชม.) เช่น "12:00", "15:30", "19:00"
 6. "admis": จำนวนผู้ชม/ที่นั่ง เป็นตัวเลขล้วน ไม่มีคอมมา (ดูจากคอลัมน์ Admits ในแถวนั้น) ถ้าไม่มีให้ใส่ 0
 7. "amount": ยอดเงิน/รายได้ **ให้ดึงค่าจากคอลัมน์ Gross เท่านั้น** เป็นตัวเลขดิบล้วนๆ ห้ามเอาช่อง Tax หรือ Net มาใส่ ถ้าไม่มีให้ใส่ 0
-
 ข้อควรระวังสำคัญ:
 - ต้องอ่านข้อมูลให้ครบทุกโรง ทุกหน้า (ตั้งแต่หน้าแรกจนถึงหน้าสุดท้าย)
 - ข้ามแถวที่เป็นผลรวมสรุปท้ายหน้าหรือท้ายเอกสาร (Day Total, Total, Sum) ให้เก็บเฉพาะข้อมูลรายละเอียดรอบฉายจริงเท่านั้น
-
 ตอบกลับมาเป็น JSON Array ของ Object เท่านั้น ห้ามใส่ Markdown code block หรือข้อความอื่นเกริ่นนำ:
 [{"branch": "", "movie": "", "sound": "", "theatre": "", "time": "", "admis": 0, "amount": 0}]`,
         { inlineData: { mimeType: mimeType, data: base64 } },
@@ -165,17 +162,20 @@ function aggregateRows(rawRows, targetTime = "23:59") {
     const branch = (row.branch || "").trim() || "ไม่ระบุสาขา";
     const movie = (row.movie || row.name || "").trim();
     
-    // กรองคำว่า Laserplex และระบบพิเศษอื่นๆ ออกจาก sound ให้เหลือเฉพาะระบบเสียงปกติ
+    // จัดกลุ่มระบบเสียงหรือระบบพิเศษทั่วไป (ตัด Laserplex ออก ใช้ค่าเสียง EN/TH ตามปกติ)
     let soundRaw = (row.sound || "-").trim();
-    let sound = soundRaw
-      .replace(/laserplex/gi, "")
-      .replace(/imax/gi, "")
-      .replace(/4dx/gi, "")
-      .replace(/screenx/gi, "")
-      .replace(/dolby/gi, "")
-      .trim();
-      
-    if (!sound || sound === "-") {
+    let sound = soundRaw;
+    const upperSound = soundRaw.toUpperCase();
+
+    if (upperSound.includes("IMAX")) {
+      sound = upperSound.includes("LASER") ? "IMAX LASER" : "IMAX";
+    } else if (upperSound.includes("4DX")) {
+      sound = "4DX";
+    } else if (upperSound.includes("SCREENX") || upperSound.includes("SCREEN X")) {
+      sound = "ScreenX";
+    } else if (upperSound.includes("DOLBY")) {
+      sound = "Dolby Atmos";
+    } else if (!sound || sound === "-") {
       sound = "-";
     }
     
@@ -230,7 +230,7 @@ function aggregateRows(rawRows, targetTime = "23:59") {
   aggregatedArray.sort((a, b) => {
     const movieCompare = a.movie.localeCompare(b.movie, 'th');
     if (movieCompare !== 0) return movieCompare;
-    return a.sound.localeCompare(b.sound, 'th');
+    return b.sound.localeCompare(a.sound, 'th');
   });
 
   return aggregatedArray;
