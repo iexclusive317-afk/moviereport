@@ -1,0 +1,29 @@
+{
+  "branch": "Central Westville",
+  "movies": [
+    {
+      "name": "SpiderMan4",
+      "sound": "(TH/--)",
+      "screens": 1,
+      "rounds": 2,
+      "people": 29,
+      "money": 5990
+    },
+    {
+      "name": "SpiderMan4",
+      "sound": "(EN/TH)",
+      "screens": 4,
+      "rounds": 12,
+      "people": 438,
+      "money": 101918
+    },
+    {
+      "name": "TheOdyssey",
+      "sound": "(EN/TH)",
+      "screens": 1,
+      "rounds": 4,
+      "people": 46,
+      "money": 10400
+    }
+  ]
+}
