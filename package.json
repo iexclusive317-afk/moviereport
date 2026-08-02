@@ -8,9 +8,11 @@
   },
   "dependencies": {
     "@google/genai": "^2.0.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
     "express": "^4.19.2",
-    "pdfkit": "^0.15.0"
+    "express-rate-limit": "^8.6.1",
+    "helmet": "^8.3.0",
+    "pdfkit": "^0.15.2"
   }
 }

@@ -237,40 +237,63 @@
     text-align:center; padding:40px 10px; color:var(--text-dim); font-size:13.5px;
   }
 
-  /* ── Mobile: everything stacks full-width, no side-scroll, no nested scroll boxes ── */
+  /* ── Mobile: ปรับปรุงให้กระชับ ไม่ต้องเลื่อนยาวเกินไป (แนวทางที่ 2) ── */
   @media(max-width:720px){
-    .wrap{padding:0 12px;}
-    section.panel{padding:16px;}
+    .wrap{padding:0 8px;}
+    section.panel{padding:12px; margin-top:14px;}
 
-    /* Branch nav becomes a horizontal row of pill buttons above the content,
-       content becomes a full-width single card below (no cramped side column,
-       no inner scroll box — the page itself scrolls). */
-    .branch-layout{flex-direction:column; gap:12px;}
+    /* ลดระยะห่างและความสูงกล่อง */
+    .input-box {
+      padding: 10px !important;
+      margin-bottom: 8px !important;
+    }
+    textarea {
+      min-height: 80px !important;
+      font-size: 11px !important;
+    }
+    header {
+      padding: 24px 16px 16px;
+    }
+    header h1 {
+      font-size: 32px;
+    }
+    
+    /* ขยายปุ่มให้กดง่ายเต็มหน้าจอ */
+    button, .btn {
+      width: 100%;
+      text-align: center;
+      padding: 10px !important;
+    }
+    .row-actions {
+      gap: 6px;
+    }
+
+    /* Branch nav แนวนอนด้านบน */
+    .branch-layout{flex-direction:column; gap:8px;}
     .branch-nav{
       flex:none; max-height:none; overflow-x:auto; overflow-y:visible;
       display:flex; gap:6px; border-right:none; border-bottom:1px solid var(--line);
-      padding:0 0 10px 0; -webkit-overflow-scrolling:touch;
+      padding:0 0 8px 0; -webkit-overflow-scrolling:touch;
     }
     .branch-nav button{
-      flex:0 0 auto; white-space:nowrap; margin-bottom:0;
+      flex:0 0 auto; white-space:nowrap; margin-bottom:0; width:auto;
     }
     .branch-scroll{max-height:none; overflow-y:visible; padding-right:0;}
-    .ticket{padding:14px 14px 12px;}
+    .ticket{padding:12px 10px 10px; margin-bottom:12px;}
     .ticket::before, .ticket::after{display:none;}
 
-    /* Tables → stacked cards: each row becomes a block, each cell a labeled line,
-       so nothing gets cut off and no horizontal scrolling is needed. */
+    /* ตารางมือถือแบบการ์ด */
     table.summary, .ticket table, .review-table{display:block;}
     table.summary thead, .ticket table thead, .review-table thead,
     table.summary tbody, .ticket table tbody, .review-table tbody{display:block;}
     table.summary tr, .ticket table tr{
-      display:block; border:1px solid var(--line); border-radius:10px;
-      padding:8px 10px; margin-bottom:8px; background:var(--surface-2);
+      display:block; border:1px solid var(--line); border-radius:8px;
+      padding:6px 8px; margin-bottom:6px; background:var(--surface-2);
     }
     table.summary th, .ticket th{display:none;}
     table.summary td, .ticket td{
-      display:flex; justify-content:space-between; align-items:center; gap:10px;
-      padding:5px 2px; border-top:none; font-size:13px;
+      display:flex; justify-content:space-between; align-items:center; gap:8px;
+      padding:4px 2px; border-top:none; font-size:12px;
     }
     table.summary td::before, .ticket td::before{
       content:attr(data-label); color:var(--text-dim); font-size:11px; flex:0 0 auto;
@@ -278,14 +301,14 @@
 
     .review-table thead{display:none;}
     .review-table tr{
-      display:block; border:1px solid var(--line); border-radius:10px;
-      padding:10px; margin-bottom:10px; background:var(--surface-2);
+      display:block; border:1px solid var(--line); border-radius:8px;
+      padding:8px; margin-bottom:8px; background:var(--surface-2);
     }
     .review-table td{
-      display:flex; align-items:center; gap:8px; padding:4px 2px;
+      display:flex; align-items:center; gap:6px; padding:3px 2px;
     }
     .review-table td::before{
-      content:attr(data-label); color:var(--text-dim); font-size:11px; flex:0 0 56px;
+      content:attr(data-label); color:var(--text-dim); font-size:11px; flex:0 0 50px;
     }
     .review-table input{max-width:none;}
     .review-table input.num, .review-table input.snd{width:100%;}
@@ -306,7 +329,7 @@
     <h2><span class="no">1</span> นำเข้าข้อมูล</h2>
     <p class="hint">เลือกกำหนดเงื่อนไขเวลาฉายสูงสุด (Target Time) และอัปโหลดไฟล์/ข้อความเข้าสู่ระบบ Gemini</p>
 
-    <div style="margin-bottom:15px;">
+    <div style="margin-bottom:12px;">
       <label style="font-size:13px; font-weight:600; color:var(--gold);">⏰ กรองเวลาฉายสูงสุด (Target Time): </label>
       <input type="text" id="targetTime" class="target-time-input" value="23:59" placeholder="18:30">
     </div>
@@ -363,6 +386,19 @@
         </div>
         <div class="status-msg" id="excelStatus"></div>
       </div>
+
+      <div class="input-box">
+        <label>🔗 ลิงก์ Google Sheets (วางได้หลายลิงก์ บรรทัดละ 1 ลิงก์)</label>
+        <textarea id="sheetLinks" placeholder="https://docs.google.com/spreadsheets/d/xxxxxxxx/edit#gid=0"></textarea>
+        <div class="upload-guide">
+          💡 ชีตต้องตั้งค่าแชร์เป็น <strong>"ทุกคนที่มีลิงก์ดูได้"</strong> ก่อน ระบบจะดึงเฉพาะแท็บ (gid) ตามลิงก์ที่วาง ถ้าไม่ระบุ gid จะดึงแท็บแรก
+        </div>
+        <div class="row-actions">
+          <button class="btn-primary" onclick="extractFromGoogleSheets()">ดึงข้อมูลจาก Google Sheets</button>
+          <button class="btn-ghost" onclick="document.getElementById('sheetLinks').value=''">ล้าง</button>
+        </div>
+        <div class="status-msg" id="sheetStatus"></div>
+      </div>
     </div>
   </section>
 
@@ -393,7 +429,6 @@
       <button class="btn-success" id="btnExportPDF" style="display:none;" onclick="exportPDF()">📄 ออกรายงาน PDF</button>
     </div>
   </section>
-
 
 </div>
 
@@ -458,7 +493,6 @@ function fileToArrayBuffer(file){
   });
 }
 
-// อ่านหลายไฟล์แบบวนลูป (รูปภาพ / PDF)
 async function extractFromFile(inputId, kind){
   const input = document.getElementById(inputId);
   const statusEl = document.getElementById(kind==='image' ? 'imgStatus' : 'pdfStatus');
@@ -502,7 +536,6 @@ async function extractFromFile(inputId, kind){
   input.value = "";
 }
 
-// แปลงไฟล์ Excel/CSV เป็นข้อความ (CSV) ทุกชีต แล้วส่งเข้าเส้นทางเดียวกับ "วางข้อความ"
 async function extractFromExcel(){
   const input = document.getElementById('excelFile');
   const statusEl = document.getElementById('excelStatus');
@@ -567,6 +600,62 @@ async function extractFromExcel(){
   }
 
   input.value = "";
+}
+
+async function fetchGoogleSheetCsv(url){
+  const res = await fetch("/fetch-sheet", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url })
+  });
+  const resData = await res.json();
+  if(!res.ok) throw new Error(resData.error || "ดึงข้อมูลจาก Google Sheets ไม่สำเร็จ");
+  return resData.csv;
+}
+
+async function extractFromGoogleSheets(){
+  const statusEl = document.getElementById('sheetStatus');
+  const raw = document.getElementById('sheetLinks').value.trim();
+  const links = raw.split('\n').map(s=>s.trim()).filter(Boolean);
+
+  if(links.length === 0){
+    statusEl.textContent = "กรุณาวางลิงก์ Google Sheets อย่างน้อย 1 ลิงก์ก่อน";
+    statusEl.className = "status-msg err";
+    return;
+  }
+
+  let aggregatedResults = [];
+  let successCount = 0;
+
+  for(let i = 0; i < links.length; i++){
+    const link = links[i];
+    statusEl.textContent = `กำลังดึงข้อมูลลิงก์ที่ ${i + 1}/${links.length}...`;
+    statusEl.className = "status-msg";
+
+    try {
+      const csv = await fetchGoogleSheetCsv(link);
+      if(!csv || !csv.trim()) continue;
+      const b64Data = "data:text/plain;base64," + btoa(unescape(encodeURIComponent(csv)));
+      const arr = await callExpressBackend(b64Data);
+      if(Array.isArray(arr)) {
+        aggregatedResults = aggregatedResults.concat(arr);
+        successCount++;
+      }
+    } catch(err) {
+      console.error(`เกิดข้อผิดพลาดกับลิงก์ ${link}:`, err);
+      statusEl.textContent = `ลิงก์ที่ ${i + 1}: ${err.message}`;
+      statusEl.className = "status-msg err";
+    }
+  }
+
+  if(aggregatedResults.length > 0) {
+    openReview(aggregatedResults);
+    statusEl.textContent = `ดึงข้อมูลสำเร็จ ${successCount}/${links.length} ลิงก์ (พบทั้งหมด ${aggregatedResults.length} รายการ)`;
+    statusEl.className = "status-msg ok";
+  } else if (successCount === 0 && aggregatedResults.length === 0) {
+    statusEl.textContent = statusEl.textContent || "ไม่สามารถดึงข้อมูลจากลิงก์ที่เลือกได้ หรือไม่มีข้อมูล";
+    if(!statusEl.className.includes("err")) statusEl.className = "status-msg err";
+  }
 }
 
 function openReview(arr){

@@ -1,0 +1,29 @@
+{
+  "branch": "ไม่ระบุสาขา",
+  "movies": [
+    {
+      "name": "SpiderMan4",
+      "sound": "EN/TH",
+      "screens": 4,
+      "rounds": 11,
+      "people": 614,
+      "money": 142543
+    },
+    {
+      "name": "SpiderMan4",
+      "sound": "TH/--",
+      "screens": 1,
+      "rounds": 3,
+      "people": 60,
+      "money": 13275
+    },
+    {
+      "name": "TheOdyssey",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 4,
+      "people": 72,
+      "money": 14530
+    }
+  ]
+}

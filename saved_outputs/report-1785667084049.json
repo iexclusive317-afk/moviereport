@@ -1,0 +1,45 @@
+{
+  "branch": "1007 Major Cineplex Lotus Bangkapi",
+  "movies": [
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 21,
+      "money": 3009.3500000000004
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 36,
+      "money": 6504.67
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 29,
+      "money": 6803.740000000001
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 15,
+      "money": 3074.76
+    },
+    {
+      "name": "FEARFOLKS: KILL BILL THE WHOLE BLOODY AFFAIR",
+      "sound": "EN/TH",
+      "screens": 1,
+      "rounds": 1,
+      "people": 54,
+      "money": 6635.5199999999995
+    }
+  ]
+}
